@@ -4,7 +4,7 @@ export function initHeader(): void {
 
   header.innerHTML = `
     <div class="header-top">
-      <span class="header-name">Phil Demarest</span>
+      <span class="header-name">Phillip Demarest, PhD</span>
     </div>
     <nav class="header-nav">
       <button class="header-menu-btn" aria-label="Menu">&#9776;</button>

@@ -79,6 +79,7 @@ html, body {
 .header-menu-btn {
   background: none;
   border: 1px solid #000;
+  border-radius: 999px;
   color: #000;
   font-size: 1rem;
   padding: 0.3rem 0.6rem;
