@@ -165,3 +165,48 @@ html, body {
   opacity: 1;
   color: rgb(162, 127, 184);
 }
+
+/* ── Mobile layout ── */
+
+@media (max-width: 767px) {
+  #info-panel {
+    right: 0;
+    left: 0;
+    top: auto;
+    bottom: 0;
+    transform: none;
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: flex-end;
+    gap: 0;
+    padding: 0.8rem 0.5rem;
+    background: rgba(255, 255, 255, 0.92);
+    text-align: center;
+  }
+
+  .ip-category {
+    flex: 1;
+    padding: 0.25rem;
+    margin-top: 0 !important; /* cancel desktop sibling-push rule */
+  }
+
+  .ip-category-name {
+    transform-origin: center bottom; /* override desktop's right center */
+    text-align: center;
+  }
+
+  .ip-nodes {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 0.6rem 1rem;
+  }
+
+  .ip-category.hovered .ip-nodes,
+  .ip-category.selected .ip-nodes {
+    max-height: min(50vh, 20rem);
+  }
+}

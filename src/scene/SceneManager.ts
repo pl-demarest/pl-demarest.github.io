@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 
+const DESKTOP_FOV = 45;
+const DESKTOP_CAM = new THREE.Vector3(0, 5.5, 8);
+const MOBILE_FOV  = 65;
+const MOBILE_CAM  = new THREE.Vector3(0, 7, 14);
+const MOBILE_BREAKPOINT = 768;
+
 export class SceneManager {
   readonly scene: THREE.Scene;
   readonly camera: THREE.PerspectiveCamera;
@@ -13,15 +19,24 @@ export class SceneManager {
     this.scene.background = new THREE.Color(0xffffff);
 
     const aspect = window.innerWidth / window.innerHeight;
-    this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 100);
-    this.camera.position.set(0, 5.5, 8);
-    this.camera.lookAt(0, 0, 0);
+    this.camera = new THREE.PerspectiveCamera(DESKTOP_FOV, aspect, 0.1, 100);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
 
+    this.updateCameraForViewport(window.innerWidth, window.innerHeight);
+
     window.addEventListener('resize', this.onResize);
+  }
+
+  private updateCameraForViewport(w: number, h: number): void {
+    const isMobile = w < MOBILE_BREAKPOINT;
+    this.camera.position.copy(isMobile ? MOBILE_CAM : DESKTOP_CAM);
+    this.camera.fov = isMobile ? MOBILE_FOV : DESKTOP_FOV;
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this.camera.lookAt(0, 0, 0);
   }
 
   onTick(callback: (dt: number) => void): void {
@@ -42,8 +57,7 @@ export class SceneManager {
   private onResize = (): void => {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
+    this.updateCameraForViewport(w, h);
     this.renderer.setSize(w, h);
   };
 }

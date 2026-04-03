@@ -37,10 +37,10 @@ export function initInfoPanel(orbitalRings: OrbitalRing[]): void {
       nodeEl.dataset['nodeId'] = node.config.id;
       nodeEl.textContent = node.config.label;
 
-      nodeEl.addEventListener('mouseenter', () => {
+      nodeEl.addEventListener('pointerenter', () => {
         node.setHovered(true);
       });
-      nodeEl.addEventListener('mouseleave', () => {
+      nodeEl.addEventListener('pointerleave', () => {
         node.setHovered(false);
       });
 
@@ -74,10 +74,11 @@ function clearHoverExpansion(): void {
 function isInsideInflatedPanel(x: number, y: number): boolean {
   if (!panelEl) return false;
   const r = panelEl.getBoundingClientRect();
+  const topInflate = window.innerWidth < 768 ? 48 : PANEL_INFLATE_V;
   return (
     x >= r.left - PANEL_INFLATE_LEFT &&
     x <= r.right &&
-    y >= r.top - PANEL_INFLATE_V &&
+    y >= r.top - topInflate &&
     y <= r.bottom + PANEL_INFLATE_V
   );
 }
@@ -100,7 +101,8 @@ function findNameHit(x: number, y: number): { el: HTMLElement; ring: OrbitalRing
   return null;
 }
 
-function findNearestName(y: number): { el: HTMLElement; ring: OrbitalRing } | null {
+function findNearestName(x: number, y: number): { el: HTMLElement; ring: OrbitalRing } | null {
+  const isMobile = window.innerWidth < 768;
   let best: { el: HTMLElement; ring: OrbitalRing } | null = null;
   let bestDist = Infinity;
   for (const [el, ring] of categoryMap) {
@@ -108,8 +110,9 @@ function findNearestName(y: number): { el: HTMLElement; ring: OrbitalRing } | nu
     const nameEl = el.querySelector('.ip-category-name');
     if (!nameEl) continue;
     const r = nameEl.getBoundingClientRect();
-    const centerY = r.top + r.height / 2;
-    const dist = Math.abs(y - centerY);
+    const center = isMobile ? r.left + r.width / 2 : r.top + r.height / 2;
+    const pointer = isMobile ? x : y;
+    const dist = Math.abs(pointer - center);
     if (dist < bestDist) {
       bestDist = dist;
       best = { el, ring };
@@ -147,7 +150,7 @@ function onDocumentPointerMove(e: PointerEvent): void {
     return;
   }
 
-  const nearest = findNearestName(y);
+  const nearest = findNearestName(x, y);
   if (nearest) {
     setHover(nearest.el, nearest.ring, 'panel');
   }
