@@ -29,7 +29,7 @@ describe('bindScene', () => {
 
     store.toggleSelection(b.config.id);
     expect(a.isFlatMode).toBe(false);
-    expect(a.angularVelocity).toBe(a.config.speed);
+    expect(a.angularVelocity).toBe(a.returnSpeed);
     expect(a.nodes.map(color)).toEqual(a.nodes.map(() => 0x000000));
     expect(b.isFlatMode).toBe(true);
 

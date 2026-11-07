@@ -111,19 +111,26 @@ function nodePoint(rig: Rig, node: OrbitalNode): { x: number; y: number } {
   return p;
 }
 
-function fire(target: EventTarget, type: string, p: { x: number; y: number }, init: PointerEventInit = {}): void {
-  target.dispatchEvent(
-    new PointerEvent(type, {
-      clientX: p.x,
-      clientY: p.y,
-      bubbles: true,
-      pointerId: 1,
-      pointerType: 'mouse',
-      isPrimary: true,
-      button: 0,
-      ...init,
-    }),
-  );
+function fire(
+  target: EventTarget,
+  type: string,
+  p: { x: number; y: number },
+  init: PointerEventInit = {},
+  timeStamp?: number,
+): void {
+  const event = new PointerEvent(type, {
+    clientX: p.x,
+    clientY: p.y,
+    bubbles: true,
+    pointerId: 1,
+    pointerType: 'mouse',
+    isPrimary: true,
+    button: 0,
+    ...init,
+  });
+  // Drag speed uses event time; PointerEventInit cannot set it.
+  if (timeStamp !== undefined) Object.defineProperty(event, 'timeStamp', { value: timeStamp });
+  target.dispatchEvent(event);
 }
 
 const EMPTY = { x: 4, y: 4 };
@@ -298,13 +305,13 @@ describe('InteractionManager', () => {
     const p = ringPoint(rig, outer);
     const before = rig.rings.map(r => r.angularVelocity);
     fire(rig.canvas, 'pointermove', p);
-    fire(rig.canvas, 'pointerdown', p);
+    fire(rig.canvas, 'pointerdown', p, {}, 1000);
     rig.onHover.mockClear();
-    fire(rig.canvas, 'pointermove', { x: p.x + 20, y: p.y });
+    fire(rig.canvas, 'pointermove', { x: p.x + 20, y: p.y }, {}, 1016);
 
-    // orbitForce = dx * 0.008; dragged ring: orbitForce / 0.016.
+    // Dragged ring: dx * 0.008 over the 16 ms since the press.
     expect(outer.angularVelocity).toBeCloseTo((20 * 0.008) / 0.016, 12);
-    // Others: += orbitForce * couplingFactor * 0.25 / 0.016.
+    // Others: += dx * 0.008 * couplingFactor * 0.25 / 0.016, whatever the interval.
     for (const [r, v0] of [
       [inner, before[0]!],
       [middle, before[1]!],
@@ -325,13 +332,38 @@ describe('InteractionManager', () => {
     expect(rig.onRingClick).not.toHaveBeenCalled();
   });
 
+  it('drag spin follows the pointer speed, so the event rate does not change it', () => {
+    // The same 60 px stroke in 100 ms, sent at 60 Hz and at 120 Hz.
+    const strokes = [
+      { events: 6, stepPx: 10, stepMs: 100 / 6 },
+      { events: 12, stepPx: 5, stepMs: 100 / 12 },
+    ];
+    const results = strokes.map(({ events, stepPx, stepMs }) => {
+      document.body.innerHTML = '';
+      const r = buildRig();
+      const [, middle, outer] = r.rings as [OrbitalRing, OrbitalRing, OrbitalRing];
+      const p = ringPoint(r, outer);
+      const coupledBefore = middle.angularVelocity;
+      fire(r.canvas, 'pointerdown', p, {}, 1000);
+      for (let i = 1; i <= events; i++) {
+        fire(r.canvas, 'pointermove', { x: p.x + i * stepPx, y: p.y }, {}, 1000 + i * stepMs);
+      }
+      return { spin: outer.angularVelocity, coupled: middle.angularVelocity - coupledBefore };
+    });
+    // 600 px/s * 0.008 = 4.8 rad/s; coupling 60 px * 0.125 * couplingFactor.
+    expect(results[0]!.spin).toBeCloseTo(4.8, 9);
+    expect(results[1]!.spin).toBeCloseTo(4.8, 9);
+    expect(results[1]!.coupled).toBeCloseTo(results[0]!.coupled, 12);
+    expect(results[0]!.coupled).toBeCloseTo(60 * 0.125 * ORBITALS[1]!.couplingFactor, 12);
+  });
+
   it('a drag keeps going after the pointer leaves the canvas, until the release', () => {
     const ring = rig.rings[2]!;
     const p = ringPoint(rig, ring);
-    fire(rig.canvas, 'pointerdown', p);
+    fire(rig.canvas, 'pointerdown', p, {}, 1000);
     fire(rig.canvas, 'pointerleave', { x: p.x + 30, y: p.y });
-    // The move after leaving still drags: 60 px from the press.
-    fire(rig.canvas, 'pointermove', { x: p.x + 60, y: p.y });
+    // The move after leaving still drags: 60 px from the press in 16 ms.
+    fire(rig.canvas, 'pointermove', { x: p.x + 60, y: p.y }, {}, 1016);
     expect(ring.angularVelocity).toBeCloseTo((60 * 0.008) / 0.016, 12);
     fire(rig.canvas, 'pointerup', { x: p.x + 60, y: p.y });
     const v = ring.angularVelocity;

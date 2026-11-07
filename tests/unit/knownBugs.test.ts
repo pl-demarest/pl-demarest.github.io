@@ -46,7 +46,7 @@ function settledFlatRing(): OrbitalRing {
 }
 
 describe('OrbitalRing known bugs', () => {
-  it.fails('flat-ring-perpetual-spin: a dragged flat ring comes to rest', () => {
+  it('flat-ring-perpetual-spin: a dragged flat ring comes to rest', () => {
     const r = settledFlatRing();
     // InteractionManager sets angularVelocity directly while dragging.
     r.angularVelocity = 2;
@@ -56,7 +56,7 @@ describe('OrbitalRing known bugs', () => {
     expect(Math.abs(ringAngle(r) - before)).toBeLessThan(0.01);
   });
 
-  it.fails('flat-ring-perpetual-spin: a flat ring coupled to a dragged ring comes to rest', () => {
+  it('flat-ring-perpetual-spin: a flat ring coupled to a dragged ring comes to rest', () => {
     const r = settledFlatRing();
     // Coupling from a drag on another ring arrives through addVelocity.
     r.addVelocity(1.5);
@@ -66,7 +66,7 @@ describe('OrbitalRing known bugs', () => {
     expect(Math.abs(ringAngle(r) - before)).toBeLessThan(0.01);
   });
 
-  it.fails('framerate-dependent-physics: 60 Hz and 120 Hz stepping give the same motion after 1 s', () => {
+  it('framerate-dependent-physics: 60 Hz and 120 Hz stepping give the same motion after 1 s', () => {
     const at60 = new OrbitalRing(PUBLICATIONS);
     const at120 = new OrbitalRing(PUBLICATIONS);
     for (const r of [at60, at120]) {

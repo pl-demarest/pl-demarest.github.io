@@ -46,5 +46,6 @@ export const PARTICLE_CONFIG = {
   backgroundDepthRange: [-6, -1] as [number, number],
   foregroundDepthRange: [1, 4] as [number, number],
   spread: 16,
+  /** Largest drift per 60 Hz frame, in world units (0.12 per second). */
   driftSpeed: 0.002,
 };

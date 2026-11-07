@@ -21,11 +21,20 @@ export interface InteractionHandlers {
 
 /** A release closer than this to its press, in CSS px, is a click. */
 const CLICK_THRESHOLD = 5;
+/** Orbit angle per px of horizontal drag: the dragged ring spins at this times the pointer speed. */
 const ORBIT_FORCE = 0.008;
+/**
+ * Spin added to each other ring per px of drag, in rad/s, before its
+ * couplingFactor. Tuned as a quarter of ORBIT_FORCE per 16 ms event.
+ */
+const COUPLED_SPIN_PER_PX = (ORBIT_FORCE * 0.25) / 0.016;
+/** Tilt velocity added per px of drag, in rad/s. */
 const TILT_SCALE = 0.005;
-const COUPLING_SCALE = 0.25;
-/** The pointer event interval the drag constants were tuned for, in seconds. */
-const TUNED_EVENT_DT = 0.016;
+/**
+ * Shortest pointer event interval used for drag speed, in seconds. Browsers
+ * send at most one pointermove per frame; this bounds the speed of a burst.
+ */
+const MIN_EVENT_INTERVAL = 1 / 240;
 
 interface Press {
   readonly pointerId: number;
@@ -39,6 +48,8 @@ interface Drag {
   readonly ring: OrbitalRing;
   lastX: number;
   lastY: number;
+  /** Event time of the last press or move, in ms. */
+  lastTime: number;
 }
 
 /**
@@ -120,7 +131,7 @@ export class InteractionManager {
     const target = this.pick(e.clientX, e.clientY);
     this.press = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, target };
     this.canvas.setPointerCapture(e.pointerId);
-    if (target) this.drag = { ring: target.ring, lastX: e.clientX, lastY: e.clientY };
+    if (target) this.drag = { ring: target.ring, lastX: e.clientX, lastY: e.clientY, lastTime: e.timeStamp };
     this.updateCursor();
   };
 
@@ -128,9 +139,11 @@ export class InteractionManager {
     if (this.drag && this.press?.pointerId === e.pointerId) {
       const dx = e.clientX - this.drag.lastX;
       const dy = e.clientY - this.drag.lastY;
+      const interval = Math.max((e.timeStamp - this.drag.lastTime) / 1000, MIN_EVENT_INTERVAL);
       this.drag.lastX = e.clientX;
       this.drag.lastY = e.clientY;
-      this.applyDrag(this.drag.ring, dx, dy);
+      this.drag.lastTime = e.timeStamp;
+      this.applyDrag(this.drag.ring, dx, dy, interval);
       return;
     }
     this.setHovered(this.pick(e.clientX, e.clientY));
@@ -169,15 +182,19 @@ export class InteractionManager {
     this.updateCursor();
   }
 
-  private applyDrag(ring: OrbitalRing, dx: number, dy: number): void {
-    const orbitForce = dx * ORBIT_FORCE;
-    ring.angularVelocity = orbitForce / TUNED_EVENT_DT;
+  /**
+   * Spin the dragged ring at the pointer's speed (dx px over `interval`
+   * seconds). Tilt and the spin coupled into the other rings are impulses per
+   * px moved, so the same gesture adds the same amount at any event rate.
+   */
+  private applyDrag(ring: OrbitalRing, dx: number, dy: number, interval: number): void {
+    ring.angularVelocity = (dx * ORBIT_FORCE) / interval;
     ring.addTiltVelocity(dx * TILT_SCALE, -dy * TILT_SCALE);
 
     for (const other of this.rings) {
       if (other === ring) continue;
       const cf = other.config.couplingFactor;
-      other.addVelocity((orbitForce * cf * COUPLING_SCALE) / TUNED_EVENT_DT);
+      other.addVelocity(dx * COUPLED_SPIN_PER_PX * cf);
       other.addTiltVelocity(dx * TILT_SCALE * cf, -dy * TILT_SCALE * cf);
     }
   }

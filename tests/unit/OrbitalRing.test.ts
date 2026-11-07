@@ -1,15 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { OrbitalRing } from '../../src/scene/OrbitalRing';
+import { CRUISE_RATIO, OrbitalRing } from '../../src/scene/OrbitalRing';
 import { ORBITALS, type OrbitalConfig } from '../../src/scene/config';
 import { DT_60HZ, ringAngle, step } from './helpers/sim';
 
-// Characterization of OrbitalRing.update as it behaves today, stepped at a
-// fixed 60 Hz. Values were recorded from the current implementation on
-// 2026-11-07. A dt-correct rewrite tuned to keep 60 Hz output unchanged must
-// keep these passing; anything else is a behaviour change and needs its own
-// commit.
+// Characterization of OrbitalRing.update, stepped at a fixed 60 Hz. Values
+// were recorded from the per-frame implementation on 2026-11-07; the
+// dt-correct physics reproduces them at 60 Hz.
+//
+// config.speed is now the cruise angular velocity in rad/s. The ring starts
+// at, and returns toward, returnSpeed = config.speed / CRUISE_RATIO, which is
+// the old config.speed (LEGACY_SPEED below).
 
 const PUBLICATIONS = ORBITALS.find(o => o.id === 'publications')!;
+const LEGACY_SPEED: Record<string, number> = { publications: 0.15, experiences: 0.1, projects: 0.08 };
 
 function ring(cfg: OrbitalConfig = PUBLICATIONS): OrbitalRing {
   return new OrbitalRing(cfg);
@@ -29,12 +32,14 @@ const CRUISE_GOLDEN: Array<[number, number, number]> = [
 ];
 
 describe('OrbitalRing construction', () => {
-  it('starts at the configured tilt and speed with nodes on the ellipse', () => {
+  it('starts at the configured tilt and at its return speed, the pre-conversion speed', () => {
     for (const cfg of ORBITALS) {
       const r = ring(cfg);
       expect(r.group.rotation.x).toBe(cfg.tilt.x);
       expect(r.group.rotation.z).toBe(cfg.tilt.z);
-      expect(r.angularVelocity).toBe(cfg.speed);
+      expect(r.returnSpeed).toBe(cfg.speed / CRUISE_RATIO);
+      expect(r.returnSpeed).toBeCloseTo(LEGACY_SPEED[cfg.id]!, 15);
+      expect(r.angularVelocity).toBe(r.returnSpeed);
       expect(r.isFlatMode).toBe(false);
       expect(r.nodes.map(n => n.config.id)).toEqual(cfg.nodes.map(n => n.id));
       expect(r.hitMesh.userData['ringId']).toBe(cfg.id);
@@ -76,19 +81,35 @@ describe('OrbitalRing cruise at 60 Hz', () => {
     }
   });
 
-  it('decays from config.speed and settles at about 0.2519 x config.speed', () => {
-    // Friction (0.97 per frame) pulls velocity below half the cruise speed by
+  it('decays from its return speed s and settles at the cruise, config.speed = 0.2519 s', () => {
+    // Friction (0.97 per frame) pulls velocity below half the return speed by
     // frame 24; the 1 % return term then balances friction at
     // v = 0.01 s / (1 - 0.97 * 0.99) = 0.25189 s.
     for (const cfg of ORBITALS) {
       const r = ring(cfg);
+      const s = r.returnSpeed;
       step(r, 23);
-      expect(r.angularVelocity / cfg.speed).toBeGreaterThan(0.5);
+      expect(r.angularVelocity / s).toBeGreaterThan(0.5);
       step(r, 1);
-      expect(r.angularVelocity / cfg.speed).toBeLessThan(0.5);
+      expect(r.angularVelocity / s).toBeLessThan(0.5);
       step(r, 576);
-      expect(r.angularVelocity / cfg.speed).toBeCloseTo(0.01 / (1 - 0.97 * 0.99), 5);
+      expect(r.angularVelocity / s).toBeCloseTo(0.01 / (1 - 0.97 * 0.99), 5);
+      expect(r.angularVelocity).toBeCloseTo(cfg.speed, 10);
     }
+  });
+
+  it('a negative speed cruises the other way: the motion mirrors the positive ring', () => {
+    // The return term used to compare |v| with a negative speed and pull
+    // toward |speed|, so a reversed ring decayed to a stop.
+    const forward = ring();
+    const reverse = ring({ ...PUBLICATIONS, speed: -PUBLICATIONS.speed });
+    for (let f = 1; f <= 600; f++) {
+      step(forward, 1);
+      step(reverse, 1);
+      expect(reverse.angularVelocity, `velocity at frame ${f}`).toBeCloseTo(-forward.angularVelocity, 12);
+      expect(ringAngle(reverse), `angle at frame ${f}`).toBeCloseTo(-ringAngle(forward), 10);
+    }
+    expect(reverse.angularVelocity).toBeCloseTo(-PUBLICATIONS.speed, 10);
   });
 
   it('scales the trajectory linearly with config.speed', () => {
@@ -155,13 +176,13 @@ describe('OrbitalRing flat view', () => {
     expect(r.group.rotation.z).toBe(0);
   });
 
-  it('setFlatView(false) restores the cruise speed and eases back to the tilt', () => {
+  it('setFlatView(false) restores the return speed and eases back to the tilt', () => {
     const r = ring();
     r.setFlatView(true);
     step(r, 120);
     r.setFlatView(false);
     expect(r.isFlatMode).toBe(false);
-    expect(r.angularVelocity).toBe(PUBLICATIONS.speed);
+    expect(r.angularVelocity).toBe(r.returnSpeed);
 
     const golden: Array<[number, number, number, number]> = [
       // frame, rotation.x, rotation.z, angularVelocity
@@ -186,9 +207,9 @@ describe('OrbitalRing impulses', () => {
   it('addVelocity adds to the angular velocity and friction decays it', () => {
     const r = ring();
     r.addVelocity(1);
-    expect(r.angularVelocity).toBeCloseTo(PUBLICATIONS.speed + 1, 12);
+    expect(r.angularVelocity).toBeCloseTo(LEGACY_SPEED['publications']! + 1, 12);
     step(r, 1);
-    expect(r.angularVelocity).toBeCloseTo((PUBLICATIONS.speed + 1) * 0.97, 12);
+    expect(r.angularVelocity).toBeCloseTo((LEGACY_SPEED['publications']! + 1) * 0.97, 12);
   });
 
   it('addTiltVelocity moves the tilt, which then eases back', () => {

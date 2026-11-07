@@ -1,8 +1,11 @@
 import * as THREE from 'three';
 import { NODE_RADIUS, type NodeConfig } from './config';
+import { lerpToward } from './physics';
 
 const W_SEGMENTS = 8;
 const H_SEGMENTS = 6;
+/** Share of the remaining hover-scale change covered per 60 Hz frame. */
+const SCALE_EASE = 0.12;
 const COLOR_DEFAULT = new THREE.Color(0x000000);
 const COLOR_HIGHLIGHT = new THREE.Color(0xa27fb8);
 
@@ -46,8 +49,8 @@ export class OrbitalNode {
     this.material.color.copy(this.hovered || this.selected ? COLOR_HIGHLIGHT : COLOR_DEFAULT);
   }
 
-  update(_dt: number): void {
-    this.baseScale += (this.targetScale - this.baseScale) * 0.12;
+  update(dt: number): void {
+    this.baseScale = lerpToward(this.baseScale, this.targetScale, SCALE_EASE, dt);
     this.mesh.scale.setScalar(this.baseScale);
   }
 }

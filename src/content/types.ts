@@ -36,6 +36,7 @@ export interface OrbitLayout {
   radiusX: number;
   radiusY: number;
   tilt: { x: number; z: number };
+  /** Cruise angular velocity in rad/s; negative turns the other way. */
   speed: number;
   couplingFactor: number;
   /** Each node's angle on the orbit in radians, keyed by node id. */

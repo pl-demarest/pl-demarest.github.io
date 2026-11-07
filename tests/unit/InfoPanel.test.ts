@@ -138,7 +138,7 @@ describe('InfoPanel', () => {
     nameButton(ctx.root, ring.config.id).click();
     expect(category(ctx.root, ring.config.id).classList.contains('selected')).toBe(false);
     expect(ring.isFlatMode).toBe(false);
-    expect(ring.angularVelocity).toBe(ring.config.speed);
+    expect(ring.angularVelocity).toBe(ring.returnSpeed);
     ring.nodes.forEach((_, i) => expect(nodeColor(ring, i)).toBe(0x000000));
   });
 

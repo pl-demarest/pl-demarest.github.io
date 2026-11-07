@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { PARTICLE_CONFIG } from './config';
+import { TUNED_HZ } from './physics';
 
 export class ParticleField {
   readonly backgroundGroup: THREE.Points;
   readonly foregroundGroup: THREE.Points;
 
+  /** Drift per 60 Hz frame, in world units; update() scales it by the step. */
   private bgVelocities: Float32Array;
   private fgVelocities: Float32Array;
 
@@ -56,19 +58,21 @@ export class ParticleField {
     return { points: new THREE.Points(geometry, material), velocities };
   }
 
-  update(_dt: number): void {
-    this.drift(this.backgroundGroup, this.bgVelocities);
-    this.drift(this.foregroundGroup, this.fgVelocities);
+  /** Advance the drift by dt seconds. */
+  update(dt: number): void {
+    const frames = dt * TUNED_HZ;
+    this.drift(this.backgroundGroup, this.bgVelocities, frames);
+    this.drift(this.foregroundGroup, this.fgVelocities, frames);
   }
 
-  private drift(points: THREE.Points, velocities: Float32Array): void {
+  private drift(points: THREE.Points, velocities: Float32Array, frames: number): void {
     const pos = points.geometry.getAttribute('position') as THREE.BufferAttribute;
     const arr = pos.array as Float32Array;
     const half = PARTICLE_CONFIG.spread / 2;
 
     for (let i = 0; i < arr.length; i += 3) {
-      let x = arr[i]! + velocities[i]!;
-      let y = arr[i + 1]! + velocities[i + 1]!;
+      let x = arr[i]! + velocities[i]! * frames;
+      let y = arr[i + 1]! + velocities[i + 1]! * frames;
 
       if (x > half) x -= PARTICLE_CONFIG.spread;
       if (x < -half) x += PARTICLE_CONFIG.spread;
