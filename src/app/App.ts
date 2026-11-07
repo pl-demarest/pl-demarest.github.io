@@ -1,6 +1,7 @@
 import { SECTIONS } from '../content/site';
 import type { SiteNode } from '../content/types';
 import { InteractionManager } from '../scene/InteractionManager';
+import { disposeNodeGeometry } from '../scene/OrbitalNode';
 import { OrbitalRing } from '../scene/OrbitalRing';
 import { ParticleField } from '../scene/ParticleField';
 import { SceneManager } from '../scene/SceneManager';
@@ -107,6 +108,7 @@ export class App {
       unbind();
       interaction.dispose();
       for (const ring of rings) ring.dispose();
+      disposeNodeGeometry();
       particles.dispose();
       sm.dispose();
     });

@@ -4,6 +4,8 @@ import type * as ThreeModule from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../../src/app/App';
 import { SECTIONS } from '../../src/content/site';
+import { OrbitalNode } from '../../src/scene/OrbitalNode';
+import { ORBITALS } from '../../src/scene/config';
 
 // happy-dom has no WebGL, so the renderer is stubbed; everything else is
 // real. The stub records the loop and the scene it is asked to render, and
@@ -94,13 +96,16 @@ describe('App', () => {
     expect(document.querySelector('.ip-node.scene-hovered')?.getAttribute('data-node-id')).toBe('papers');
   });
 
-  it('dispose() stops the render loop, releases the renderer and disconnects the panel', () => {
+  it('dispose() stops the render loop, releases the renderer and the node geometry, and disconnects the panel', () => {
     app = new App();
     app.start();
     expect(renderer.loop).not.toBeNull();
+    // A node made now shares the app's node geometry.
+    const nodeGeometry = vi.spyOn(new OrbitalNode(ORBITALS[0]!.nodes[0]!).mesh.geometry, 'dispose');
     app.dispose();
     expect(renderer.loopCalls[renderer.loopCalls.length - 1]).toBeNull();
     expect(renderer.disposed).toBe(1);
+    expect(nodeGeometry).toHaveBeenCalledTimes(1);
     expect(document.querySelectorAll('.ip-category')).toHaveLength(0);
     app.store.toggleSelection('projects');
     document.body.click();

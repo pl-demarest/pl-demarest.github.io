@@ -9,6 +9,22 @@ const SCALE_EASE = 0.12;
 const COLOR_DEFAULT = new THREE.Color(0x000000);
 const COLOR_HIGHLIGHT = new THREE.Color(0xa27fb8);
 
+/** Every node is the same sphere, so all nodes share one geometry. */
+let sharedGeometry: THREE.SphereGeometry | null = null;
+
+function nodeGeometry(): THREE.SphereGeometry {
+  return (sharedGeometry ??= new THREE.SphereGeometry(NODE_RADIUS, W_SEGMENTS, H_SEGMENTS));
+}
+
+/**
+ * Release the shared node geometry once every node using it is disposed.
+ * Nodes created afterwards get a new one.
+ */
+export function disposeNodeGeometry(): void {
+  sharedGeometry?.dispose();
+  sharedGeometry = null;
+}
+
 export class OrbitalNode {
   readonly mesh: THREE.Mesh;
   readonly config: NodeConfig;
@@ -22,13 +38,12 @@ export class OrbitalNode {
   constructor(config: NodeConfig) {
     this.config = config;
 
-    const geometry = new THREE.SphereGeometry(NODE_RADIUS, W_SEGMENTS, H_SEGMENTS);
     this.material = new THREE.MeshBasicMaterial({
       color: COLOR_DEFAULT,
       wireframe: true,
     });
 
-    this.mesh = new THREE.Mesh(geometry, this.material);
+    this.mesh = new THREE.Mesh(nodeGeometry(), this.material);
     this.mesh.userData = { nodeId: config.id };
   }
 
@@ -54,8 +69,8 @@ export class OrbitalNode {
     this.mesh.scale.setScalar(this.baseScale);
   }
 
+  /** Release this node's material; the shared geometry goes with disposeNodeGeometry(). */
   dispose(): void {
-    this.mesh.geometry.dispose();
     this.material.dispose();
   }
 }
