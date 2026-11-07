@@ -3,8 +3,14 @@ import { test as base, expect, type Page } from '@playwright/test';
 /** Fixed wall-clock start for every page; the clock is paused 1 s later. */
 const CLOCK_START = new Date('2026-01-01T00:00:00Z');
 const SEED = 1234;
-/** Playwright's fake clock fires requestAnimationFrame every 16 ms. */
+/**
+ * Playwright's fake clock fires requestAnimationFrame every 16 ms of fake
+ * time, at integer multiples of 16 ms (it has no fractional-millisecond
+ * frames), so every duration passed to advance() is a whole number of these.
+ */
 export const FRAME_MS = 16;
+/** The scene sees each 16 ms fake-clock frame as one 60 Hz frame (dt = 1/60 s). */
+export const SCENE_FRAME_MS = 1000 / 60;
 
 /**
  * Open the landing page with deterministic randomness and time.
@@ -13,12 +19,12 @@ export const FRAME_MS = 16;
  *   requestAnimationFrame callback runs until the test advances time; the
  *   scene's loop (renderer.setAnimationLoop -> rAF) then runs only under
  *   page.clock.runFor, with rAF firing at multiples of 16 ms.
- * - The paused clock's performance.now() still starts at a value that varies
- *   between loads (1-7 ms measured), and SceneManager derives dt from
- *   performance.now(), so the first frame's dt would vary and node positions
- *   would differ by a fraction of a pixel. An init script registered after
- *   the clock (so it wraps the fake) quantizes performance.now() to the
- *   16 ms frame grid: every frame then has dt = 16 ms exactly.
+ * - SceneManager derives dt from performance.now(). An init script
+ *   registered after the clock (so it wraps the fake) counts whole 16 ms
+ *   fake-clock frames and reports frame k as k * 1000/60 ms. Every frame
+ *   then has dt = 1/60 s, the step the unit-test characterization uses,
+ *   and the paused clock's varying start offset (1-7 ms measured) cannot
+ *   change the first frame's dt.
  * - Math.random is replaced by mulberry32(SEED), so the particle field and
  *   three.js UUIDs are identical on every load.
  *
@@ -29,9 +35,9 @@ export async function openScene(page: Page, settleMs = 2000): Promise<void> {
   await page.clock.pauseAt(new Date(CLOCK_START.getTime() + 1000));
   // Registered after clock.install, so it runs after the fake clock is in place.
   await page.addInitScript(
-    ({ seed, frameMs }: { seed: number; frameMs: number }) => {
+    ({ seed, frameMs, sceneFrameMs }: { seed: number; frameMs: number; sceneFrameMs: number }) => {
       const fakeNow = performance.now.bind(performance);
-      performance.now = () => Math.floor(fakeNow() / frameMs) * frameMs;
+      performance.now = () => Math.floor(fakeNow() / frameMs) * sceneFrameMs;
 
       let a = seed >>> 0;
       Math.random = () => {
@@ -42,7 +48,7 @@ export async function openScene(page: Page, settleMs = 2000): Promise<void> {
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
       };
     },
-    { seed: SEED, frameMs: FRAME_MS },
+    { seed: SEED, frameMs: FRAME_MS, sceneFrameMs: SCENE_FRAME_MS },
   );
   await page.goto('/');
   await expect(page.locator('#info-panel .ip-category')).toHaveCount(3);

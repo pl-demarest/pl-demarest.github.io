@@ -54,7 +54,7 @@ for (const orbital of ORBITALS) {
     await category(page, orbital.id).locator('.ip-category-name').click();
     await expect(category(page, orbital.id)).toHaveClass(/\bselected\b/);
     await expect(page.locator('.ip-category.selected')).toHaveCount(1);
-    // The flat-view ease settles in under 40 frames (0.64 s); run 94 frames.
+    // The flat-view ease settles in under 40 frames (0.67 s at 60 Hz); run 94 frames.
     await advance(page, 1504);
     await expect(page).toHaveScreenshot(`desktop-selected-${orbital.id}.png`);
   });

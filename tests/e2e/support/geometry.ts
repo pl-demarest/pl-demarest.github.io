@@ -6,7 +6,8 @@ import { ORBITALS } from '../../../src/scene/config';
 // node centres, empty space). The camera constants mirror SceneManager's
 // private DESKTOP_* / MOBILE_* values; keep them in step with src.
 
-const FRAME_DT = 0.016; // Playwright's fake clock runs rAF every 16 ms.
+// The fixture reports each 16 ms fake-clock frame to the scene as 1/60 s.
+const FRAME_DT = 1 / 60;
 
 export interface Viewport {
   width: number;
