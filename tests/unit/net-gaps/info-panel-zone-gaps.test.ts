@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { OrbitalRing } from '../../../src/scene/OrbitalRing';
+import { Store } from '../../../src/app/store';
+import { SECTIONS } from '../../../src/content/site';
 import { ORBITALS } from '../../../src/scene/config';
 import type * as InfoPanel from '../../../src/ui/info-panel';
 import { setViewport } from './viewport';
@@ -27,7 +28,7 @@ async function setup(): Promise<HTMLElement> {
     realAdd(type, listener, options);
   });
   const panel: typeof InfoPanel = await import('../../../src/ui/info-panel');
-  panel.initInfoPanel(ORBITALS.map(cfg => new OrbitalRing(cfg)));
+  panel.initInfoPanel(SECTIONS, new Store());
   return document.getElementById('info-panel')!;
 }
 

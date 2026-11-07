@@ -1,20 +1,24 @@
 // @vitest-environment happy-dom
 import type * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { bindScene } from '../../src/app/sceneBinding';
+import { Store } from '../../src/app/store';
+import { SECTIONS } from '../../src/content/site';
 import { OrbitalRing } from '../../src/scene/OrbitalRing';
 import { ORBITALS } from '../../src/scene/config';
 import type * as InfoPanel from '../../src/ui/info-panel';
 
-// info-panel.ts keeps its state in module-level variables and registers
-// document listeners on init, so every test imports a fresh module instance
-// and removes the listeners that instance added.
+// info-panel.ts keeps its DOM references in module-level variables and
+// registers document listeners on init, so every test imports a fresh module
+// instance and removes the listeners that instance added. Hover and
+// selection live in the store; bindScene renders them onto the rings.
 
 type Panel = typeof InfoPanel;
 
 const HIGHLIGHT = 0xa27fb8;
 let added: Array<[string, EventListenerOrEventListenerObject]> = [];
 
-async function setup(): Promise<{ panel: Panel; rings: OrbitalRing[]; root: HTMLElement }> {
+async function setup(): Promise<{ panel: Panel; rings: OrbitalRing[]; root: HTMLElement; store: Store }> {
   document.body.innerHTML = '<canvas id="scene"></canvas><div id="info-panel"></div>';
   vi.resetModules();
   const realAdd = document.addEventListener.bind(document);
@@ -24,8 +28,10 @@ async function setup(): Promise<{ panel: Panel; rings: OrbitalRing[]; root: HTML
   });
   const panel: Panel = await import('../../src/ui/info-panel');
   const rings = ORBITALS.map(cfg => new OrbitalRing(cfg));
-  panel.initInfoPanel(rings);
-  return { panel, rings, root: document.getElementById('info-panel')! };
+  const store = new Store();
+  bindScene(store, rings);
+  panel.initInfoPanel(SECTIONS, store);
+  return { panel, rings, root: document.getElementById('info-panel')!, store };
 }
 
 function category(root: HTMLElement, ringId: string): HTMLElement {
@@ -110,7 +116,7 @@ describe('info panel', () => {
 
   it('selectRingFromScene selects and survives the click that caused it', () => {
     const ring = ctx.rings[0]!;
-    ctx.panel.selectRingFromScene(ring);
+    ctx.panel.selectRingFromScene(ring.config.id);
     expect(ring.isFlatMode).toBe(true);
     // The canvas pointerup that triggered the selection is followed by a
     // document click; that one click is ignored.
@@ -120,30 +126,30 @@ describe('info panel', () => {
     expect(ring.isFlatMode).toBe(false);
   });
 
-  it('setSceneHover expands the ring category and clears it on null', () => {
+  it('a scene ring hover expands the ring category and clears it on null', () => {
     const ring = ctx.rings[1]!;
-    ctx.panel.setSceneHover(ring);
+    ctx.store.hoverRing(ring.config.id, 'scene');
     expect(category(ctx.root, ring.config.id).classList.contains('hovered')).toBe(true);
-    ctx.panel.setSceneHover(null);
+    ctx.store.hoverRing(null, 'scene');
     expect(ctx.root.querySelector('.ip-category.hovered')).toBeNull();
   });
 
-  it('setSceneHover does not mark the selected category as hovered', () => {
+  it('a scene ring hover does not mark the selected category as hovered', () => {
     const ring = ctx.rings[1]!;
     clickName(ctx.root, ring.config.id);
-    ctx.panel.setSceneHover(ring);
+    ctx.store.hoverRing(ring.config.id, 'scene');
     expect(category(ctx.root, ring.config.id).classList.contains('hovered')).toBe(false);
   });
 
-  it('highlightSceneNode marks exactly one panel node and clears on null', () => {
-    ctx.panel.highlightSceneNode('patents');
+  it('a scene node hover marks exactly one panel node and clears on null', () => {
+    ctx.store.hoverNode('patents', 'scene');
     const marked = [...ctx.root.querySelectorAll<HTMLElement>('.ip-node.scene-hovered')];
     expect(marked.map(n => n.dataset['nodeId'])).toEqual(['patents']);
-    ctx.panel.highlightSceneNode('code');
+    ctx.store.hoverNode('code', 'scene');
     expect(
       [...ctx.root.querySelectorAll<HTMLElement>('.ip-node.scene-hovered')].map(n => n.dataset['nodeId']),
     ).toEqual(['code']);
-    ctx.panel.highlightSceneNode(null);
+    ctx.store.hoverNode(null, 'scene');
     expect(ctx.root.querySelector('.ip-node.scene-hovered')).toBeNull();
   });
 
