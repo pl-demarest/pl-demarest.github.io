@@ -1,5 +1,6 @@
 import type { AppState, Store, Unsubscribe } from '../app/store';
 import type { Section, SiteNode } from '../content/types';
+import { isMobileWidth } from './breakpoints';
 
 // Hover zones around the panel and around each category name, in CSS px.
 const PANEL_INFLATE_LEFT = 60;
@@ -8,7 +9,6 @@ const PANEL_INFLATE_TOP_MOBILE = 48;
 const NAME_INFLATE_LEFT = 40;
 const NAME_INFLATE_RIGHT = 4;
 const NAME_INFLATE_V = 6;
-const MOBILE_BREAKPOINT = 768;
 
 export interface InfoPanelOptions {
   /**
@@ -207,7 +207,7 @@ export class InfoPanel {
     const { panel, names } = this.measure();
     const x = e.clientX;
     const y = e.clientY;
-    const mobile = window.innerWidth < MOBILE_BREAKPOINT;
+    const mobile = isMobileWidth(window.innerWidth);
 
     const topInflate = mobile ? PANEL_INFLATE_TOP_MOBILE : PANEL_INFLATE_V;
     const insidePanel =

@@ -385,6 +385,21 @@ describe('InteractionManager', () => {
     expect(rig.canvas.style.cursor).not.toBe('grabbing');
   });
 
+  it('dispose() stops listening and lets go of a held pointer', () => {
+    const ring = rig.rings[2]!;
+    const p = ringPoint(rig, ring);
+    fire(rig.canvas, 'pointerdown', p);
+    rig.im.dispose();
+    expect(rig.canvas.hasPointerCapture(1)).toBe(false);
+    const v = ring.angularVelocity;
+    fire(rig.canvas, 'pointermove', { x: p.x + 40, y: p.y });
+    fire(rig.canvas, 'pointerup', p);
+    fire(rig.canvas, 'pointermove', p);
+    expect(ring.angularVelocity).toBe(v);
+    expect(rig.onRingClick).not.toHaveBeenCalled();
+    expect(rig.onHover).not.toHaveBeenCalled();
+  });
+
   it('setRings replaces the pickable rings', () => {
     const [inner, , outer] = rig.rings as [OrbitalRing, OrbitalRing, OrbitalRing];
     const p = ringPoint(rig, inner);

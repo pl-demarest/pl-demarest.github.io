@@ -32,12 +32,16 @@ export class OrbitalRing {
    */
   readonly returnSpeed: number;
 
+  private readonly line: THREE.Line;
+
   private angle = 0;
   private _angularVelocity: number;
   private _tiltVelocityX = 0;
   private _tiltVelocityZ = 0;
 
   private flatMode = false;
+  /** False under prefers-reduced-motion: the ring turns only when dragged. */
+  private autoRotate = true;
   private targetRotX: number;
   private targetRotZ: number;
 
@@ -63,8 +67,8 @@ export class OrbitalRing {
 
     const lineGeom = new THREE.BufferGeometry().setFromPoints(points);
     const lineMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 1 });
-    const line = new THREE.Line(lineGeom, lineMat);
-    this.group.add(line);
+    this.line = new THREE.Line(lineGeom, lineMat);
+    this.group.add(this.line);
 
     const path = new THREE.CatmullRomCurve3(points, true);
     const tubeGeom = new THREE.TubeGeometry(path, CURVE_POINTS, HIT_TUBE_RADIUS, 6, true);
@@ -96,8 +100,18 @@ export class OrbitalRing {
     } else {
       this.targetRotX = this.config.tilt.x;
       this.targetRotZ = this.config.tilt.z;
-      this._angularVelocity = this.returnSpeed;
+      this._angularVelocity = this.autoRotate ? this.returnSpeed : 0;
     }
+  }
+
+  /**
+   * Turn the ring's own rotation on or off. Off stops it now and leaves only
+   * drags to move it; on relaunches it at its return speed.
+   */
+  setAutoRotate(enabled: boolean): void {
+    if (enabled === this.autoRotate) return;
+    this.autoRotate = enabled;
+    if (!this.flatMode) this._angularVelocity = enabled ? this.returnSpeed : 0;
   }
 
   get isFlatMode(): boolean {
@@ -155,7 +169,7 @@ export class OrbitalRing {
       this._tiltVelocityZ = damp(this._tiltVelocityZ, FRICTION, dt);
 
       this._angularVelocity = damp(this._angularVelocity, FRICTION, dt);
-      if (Math.abs(this._angularVelocity) < Math.abs(this.returnSpeed) * 0.5) {
+      if (this.autoRotate && Math.abs(this._angularVelocity) < Math.abs(this.returnSpeed) * 0.5) {
         this._angularVelocity = lerpToward(this._angularVelocity, this.returnSpeed, RETURN_RATE, dt);
       }
     }
@@ -169,5 +183,15 @@ export class OrbitalRing {
       node.mesh.position.set(px, 0, pz);
       node.update(dt);
     }
+  }
+
+  /** Remove the ring from its parent and release its geometries and materials. */
+  dispose(): void {
+    this.group.removeFromParent();
+    for (const object of [this.line, this.hitMesh]) {
+      object.geometry.dispose();
+      (object.material as THREE.Material).dispose();
+    }
+    for (const node of this.nodes) node.dispose();
   }
 }

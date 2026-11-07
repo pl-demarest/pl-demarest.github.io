@@ -64,6 +64,7 @@ export class InteractionManager {
   private readonly handlers: InteractionHandlers;
   private readonly raycaster = new THREE.Raycaster();
   private readonly ndc = new THREE.Vector2();
+  private readonly listeners = new AbortController();
 
   private rings: OrbitalRing[] = [];
   private ringMeshes: THREE.Object3D[] = [];
@@ -81,13 +82,26 @@ export class InteractionManager {
     this.canvas = canvas;
     this.handlers = handlers;
 
-    canvas.addEventListener('pointerdown', this.onPointerDown);
-    canvas.addEventListener('pointermove', this.onPointerMove);
-    canvas.addEventListener('pointerup', this.onPointerUp);
-    canvas.addEventListener('pointercancel', this.onPointerCancel);
-    canvas.addEventListener('pointerleave', this.onPointerLeave);
-    window.addEventListener('resize', this.invalidateRect);
-    window.addEventListener('scroll', this.invalidateRect, { capture: true, passive: true });
+    const { signal } = this.listeners;
+    canvas.addEventListener('pointerdown', this.onPointerDown, { signal });
+    canvas.addEventListener('pointermove', this.onPointerMove, { signal });
+    canvas.addEventListener('pointerup', this.onPointerUp, { signal });
+    canvas.addEventListener('pointercancel', this.onPointerCancel, { signal });
+    canvas.addEventListener('pointerleave', this.onPointerLeave, { signal });
+    window.addEventListener('resize', this.invalidateRect, { signal });
+    window.addEventListener('scroll', this.invalidateRect, { capture: true, passive: true, signal });
+  }
+
+  /** Stop listening and let go of any press. */
+  dispose(): void {
+    this.endPress();
+    this.listeners.abort();
+    this.rings = [];
+    this.ringMeshes = [];
+    this.nodeMeshes = [];
+    this.targets.clear();
+    this.hovered = null;
+    this.canvas.style.cursor = '';
   }
 
   /** Replace the pickable rings; rebuilds the pick lists. */

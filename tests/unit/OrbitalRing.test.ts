@@ -230,3 +230,33 @@ describe('OrbitalRing impulses', () => {
     expect(r.findNodeById('nope')).toBeUndefined();
   });
 });
+
+describe('OrbitalRing with auto-rotation off (reduced motion)', () => {
+  it('stops at once, stays still, and still coasts after a direct drag', () => {
+    const r = ring();
+    step(r, 30);
+    r.setAutoRotate(false);
+    expect(r.angularVelocity).toBe(0);
+    const angle = ringAngle(r);
+    step(r, 600);
+    expect(ringAngle(r)).toBe(angle);
+
+    r.angularVelocity = 2;
+    step(r, 600);
+    expect(Math.abs(r.angularVelocity)).toBeLessThan(1e-6);
+    const rest = ringAngle(r);
+    step(r, 60);
+    expect(Math.abs(ringAngle(r) - rest)).toBeLessThan(1e-6);
+  });
+
+  it('leaving the flat view does not relaunch it; turning it back on does', () => {
+    const r = ring();
+    r.setAutoRotate(false);
+    r.setFlatView(true);
+    step(r, 60);
+    r.setFlatView(false);
+    expect(r.angularVelocity).toBe(0);
+    r.setAutoRotate(true);
+    expect(r.angularVelocity).toBe(r.returnSpeed);
+  });
+});

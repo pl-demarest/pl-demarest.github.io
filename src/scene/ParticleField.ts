@@ -9,6 +9,8 @@ export class ParticleField {
   /** Drift per 60 Hz frame, in world units; update() scales it by the step. */
   private bgVelocities: Float32Array;
   private fgVelocities: Float32Array;
+  /** False under prefers-reduced-motion. */
+  private drifting = true;
 
   constructor() {
     const { backgroundCount, foregroundCount, backgroundDepthRange, foregroundDepthRange, spread, driftSpeed } =
@@ -58,8 +60,14 @@ export class ParticleField {
     return { points: new THREE.Points(geometry, material), velocities };
   }
 
+  /** Pause or resume the drift. */
+  setDrifting(enabled: boolean): void {
+    this.drifting = enabled;
+  }
+
   /** Advance the drift by dt seconds. */
   update(dt: number): void {
+    if (!this.drifting) return;
     const frames = dt * TUNED_HZ;
     this.drift(this.backgroundGroup, this.bgVelocities, frames);
     this.drift(this.foregroundGroup, this.fgVelocities, frames);
@@ -84,5 +92,14 @@ export class ParticleField {
     }
 
     pos.needsUpdate = true;
+  }
+
+  /** Remove both layers from their parent and release their geometries and materials. */
+  dispose(): void {
+    for (const points of [this.backgroundGroup, this.foregroundGroup]) {
+      points.removeFromParent();
+      points.geometry.dispose();
+      (points.material as THREE.Material).dispose();
+    }
   }
 }

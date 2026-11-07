@@ -190,6 +190,21 @@ html, body {
   color: rgb(162, 127, 184);
 }
 
+/* ── Notice shown when WebGL is unavailable ── */
+
+.scene-notice {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  max-width: 20rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+  text-align: center;
+  opacity: 0.6;
+}
+
 /* ── Mobile layout ── */
 
 @media (max-width: 767px) {
@@ -232,5 +247,19 @@ html, body {
   .ip-category.hovered .ip-nodes,
   .ip-category.selected .ip-nodes {
     max-height: min(50vh, 20rem);
+  }
+}
+
+/* ── Reduced motion: the scene stops its own motion (App) and transitions
+   shorten to a quick fade. ── */
+
+@media (prefers-reduced-motion: reduce) {
+  .header-link,
+  .header-menu-btn,
+  .ip-category,
+  .ip-category-name,
+  .ip-nodes,
+  .ip-node {
+    transition-duration: 0.05s;
   }
 }

@@ -129,3 +129,16 @@ describe('ParticleField (Math.random seeded)', () => {
     }
   });
 });
+
+describe('ParticleField drift switch (reduced motion)', () => {
+  it('holds every particle while drifting is off, and resumes when it is on', () => {
+    const field = new ParticleField();
+    const start = Float32Array.from(positions(field.backgroundGroup));
+    field.setDrifting(false);
+    for (let i = 0; i < 120; i++) field.update(1 / 60);
+    expect(positions(field.backgroundGroup)).toEqual(start);
+    field.setDrifting(true);
+    field.update(1 / 60);
+    expect(positions(field.backgroundGroup)).not.toEqual(start);
+  });
+});

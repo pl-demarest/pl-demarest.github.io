@@ -67,15 +67,19 @@ export async function advance(page: Page, ms: number): Promise<void> {
 /**
  * Every test fails if the page throws or logs a console error. Console
  * warnings are allowed (software WebGL logs "GPU stall due to ReadPixels"
- * warnings whenever a screenshot reads the canvas).
+ * warnings whenever a screenshot reads the canvas). A test that provokes a
+ * known error lists it in `allowedConsoleErrors`.
  */
-export const test = base.extend<{ failOnPageErrors: void }>({
+export const test = base.extend<{ failOnPageErrors: void; allowedConsoleErrors: RegExp[] }>({
+  allowedConsoleErrors: [[], { option: true }],
   failOnPageErrors: [
-    async ({ page }, use) => {
+    async ({ page, allowedConsoleErrors }, use) => {
       const problems: string[] = [];
       page.on('pageerror', err => problems.push(`pageerror: ${err.message}`));
       page.on('console', msg => {
-        if (msg.type() === 'error') problems.push(`console.error: ${msg.text()}`);
+        if (msg.type() !== 'error') return;
+        if (allowedConsoleErrors.some(pattern => pattern.test(msg.text()))) return;
+        problems.push(`console.error: ${msg.text()}`);
       });
       await use();
       expect(problems, 'page errors and console errors').toEqual([]);

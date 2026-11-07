@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { OrbitalRing } from '../../../src/scene/OrbitalRing';
+import { cameraPresetFor } from '../../../src/scene/SceneManager';
 import { ORBITALS } from '../../../src/scene/config';
 
 // Node-side model of the scene used to find screen targets (ring points,
-// node centres, empty space). The camera constants mirror SceneManager's
-// private DESKTOP_* / MOBILE_* values; keep them in step with src.
+// node centres, empty space), with SceneManager's own camera presets.
 
 // The fixture reports each 16 ms fake-clock frame to the scene as 1/60 s.
 const FRAME_DT = 1 / 60;
@@ -27,9 +27,9 @@ export class SceneModel {
     private readonly viewport: Viewport,
     elapsedMs: number,
   ) {
-    const mobile = viewport.width < 768;
-    this.camera = new THREE.PerspectiveCamera(mobile ? 65 : 45, viewport.width / viewport.height, 0.1, 100);
-    this.camera.position.set(0, mobile ? 7 : 5.5, mobile ? 14 : 8);
+    const preset = cameraPresetFor(viewport.width);
+    this.camera = new THREE.PerspectiveCamera(preset.fov, viewport.width / viewport.height, 0.1, 100);
+    this.camera.position.set(...preset.position);
     this.camera.lookAt(0, 0, 0);
     this.camera.updateMatrixWorld();
 

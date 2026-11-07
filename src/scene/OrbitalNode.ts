@@ -53,4 +53,9 @@ export class OrbitalNode {
     this.baseScale = lerpToward(this.baseScale, this.targetScale, SCALE_EASE, dt);
     this.mesh.scale.setScalar(this.baseScale);
   }
+
+  dispose(): void {
+    this.mesh.geometry.dispose();
+    this.material.dispose();
+  }
 }
