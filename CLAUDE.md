@@ -4,13 +4,13 @@ Interactive GitHub Pages portfolio site with 3D orbital navigation. Built with V
 
 This project's documentation, task management, and knowledge base live in the Obsidian vault.
 
-- **Vault root:** /Users/Phil/Library/CloudStorage/Box-Box/obsidian (see agents/config.md in the vault)
-- **Project docs:** /Users/Phil/Library/CloudStorage/Box-Box/obsidian/projects/githubLanding/
+- **Vault root:** /Users/Phil/obsidian (see agents/config.md in the vault)
+- **Project docs:** /Users/Phil/obsidian/projects/githubLanding/
 - **Core file:** githubLandingCore.md
 - **Kanban:** githubLandingKanban.md
 - **State doc:** githubLandingState.md (architecture, wiring, conventions -- read this before touching code)
 
-For vault operations, read the skill at .claude/skills/obsidian-vault-core/SKILL.md, which mandates reading the vault guide at the vault root.
+At session start, read /Users/Phil/obsidian/agents/skills/core/SKILL.md and /Users/Phil/obsidian/agents/skills/core/session-log.md beside it. SKILL.md mandates reading the vault guide at the vault root.
 
 ## Task System
 
