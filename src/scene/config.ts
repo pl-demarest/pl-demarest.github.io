@@ -1,107 +1,42 @@
-export interface NodeConfig {
-  id: string;
-  label: string;
-  description: string;
+import { LAYOUT } from '../content/layout';
+import { SECTIONS } from '../content/site';
+import type { OrbitLayout, Section, SiteNode } from '../content/types';
+
+/** A content node with its angle on the orbit. */
+export interface NodeConfig extends SiteNode {
   angleOffset: number;
-  type: 'group' | 'project';
 }
 
-export interface OrbitalConfig {
+/** A section joined with its orbit layout: what one OrbitalRing renders. */
+export interface OrbitalConfig extends Omit<OrbitLayout, 'nodeAngles'> {
   id: string;
   label: string;
-  radiusX: number;
-  radiusY: number;
-  tilt: { x: number; z: number };
-  speed: number;
-  couplingFactor: number;
   nodes: NodeConfig[];
 }
 
-export const ORBITALS: OrbitalConfig[] = [
-  {
-    id: 'publications',
-    label: 'Publications',
-    radiusX: 2.2,
-    radiusY: 1.6,
-    tilt: { x: 0.25, z: 0.3 },
-    speed: 0.15,
-    couplingFactor: 0.4,
-    nodes: [
-      {
-        id: 'papers',
-        label: 'Papers',
-        description: 'Peer-reviewed research publications',
-        angleOffset: 0,
-        type: 'group',
-      },
-      {
-        id: 'patents',
-        label: 'Patents',
-        description: 'Granted and pending patent filings',
-        angleOffset: (2 * Math.PI) / 3,
-        type: 'group',
-      },
-      {
-        id: 'presentations',
-        label: 'Presentations',
-        description: 'Conference talks, posters, and invited lectures',
-        angleOffset: (4 * Math.PI) / 3,
-        type: 'group',
-      },
-    ],
-  },
-  {
-    id: 'experiences',
-    label: 'Experiences',
-    radiusX: 3.2,
-    radiusY: 2.3,
-    tilt: { x: -0.15, z: -0.2 },
-    speed: 0.1,
-    couplingFactor: 0.35,
-    nodes: [
-      {
-        id: 'academic',
-        label: 'Academic',
-        description: 'Research positions, teaching, and institutional affiliations',
-        angleOffset: 0.4,
-        type: 'group',
-      },
-      {
-        id: 'professional',
-        label: 'Professional',
-        description: 'Industry roles, consulting engagements, and collaborations',
-        angleOffset: 0.4 + Math.PI,
-        type: 'group',
-      },
-    ],
-  },
-  {
-    id: 'projects',
-    label: 'Projects',
-    radiusX: 4.2,
-    radiusY: 3.0,
-    tilt: { x: 0.1, z: -0.25 },
-    speed: 0.08,
-    couplingFactor: 0.3,
-    nodes: [
-      {
-        id: 'engagements',
-        label: 'Engagements',
-        description: 'Applied projects, client work, and cross-disciplinary initiatives',
-        angleOffset: 0.9,
-        type: 'group',
-      },
-      {
-        id: 'code',
-        label: 'Code',
-        description:
-          'Open source libraries, tools, and software projects. PEABrain (VERA-aligned MATLAB): https://github.com/pl-demarest/PEABrain — demo asset drop: /public/peabrain-demo/',
-        angleOffset: 0.9 + Math.PI,
-        type: 'group',
-      },
-    ],
-  },
-];
+/** Join each section with its layout. Throws if a section or node has no placement. */
+export function buildOrbitals(
+  sections: readonly Section[],
+  layout: Readonly<Record<string, OrbitLayout>>,
+): OrbitalConfig[] {
+  return sections.map(section => {
+    const orbit = layout[section.id];
+    if (!orbit) throw new Error(`section "${section.id}" has no layout`);
+    const { nodeAngles, ...placement } = orbit;
+    return {
+      id: section.id,
+      label: section.label,
+      ...placement,
+      nodes: section.nodes.map(node => {
+        const angleOffset = nodeAngles[node.id];
+        if (angleOffset === undefined) throw new Error(`node "${node.id}" has no angle in the layout`);
+        return { ...node, angleOffset };
+      }),
+    };
+  });
+}
+
+export const ORBITALS: OrbitalConfig[] = buildOrbitals(SECTIONS, LAYOUT);
 
 export const NODE_RADIUS = 0.18;
 
