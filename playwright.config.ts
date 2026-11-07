@@ -12,7 +12,7 @@ export default defineConfig({
   retries: 0,
   forbidOnly: !!process.env['CI'],
   reporter: [['list'], ['html', { open: 'never' }]],
-  snapshotPathTemplate: '{testDir}/__screenshots__/{testFilePath}/{arg}{ext}',
+  snapshotPathTemplate: '{testDir}/__screenshots__/{testFilePath}/{arg}-{platform}{ext}',
   expect: {
     toHaveScreenshot: { maxDiffPixels: 0 },
   },
