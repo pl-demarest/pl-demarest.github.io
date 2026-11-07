@@ -23,6 +23,8 @@ html, body {
   width: 100%;
   height: 100%;
   z-index: 0;
+  /* Pointer drags spin the rings; the browser must not claim them for panning. */
+  touch-action: none;
 }
 
 /* ── Foreground blur overlay ── */

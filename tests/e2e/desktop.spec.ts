@@ -108,3 +108,15 @@ test('hovering a scene node highlights its panel entry', async ({ page }) => {
   await page.mouse.move(EMPTY.x, EMPTY.y);
   await expect(page.locator('.ip-node.scene-hovered')).toHaveCount(0);
 });
+
+test('moving from a scene node onto the header clears the scene hover', async ({ page }) => {
+  const target = model.nodePoint('papers');
+  await page.mouse.move(target.x, target.y);
+  await expect(page.locator('.ip-node.scene-hovered')).toHaveCount(1);
+  await expect(category(page, 'publications')).toHaveClass(/\bhovered\b/);
+
+  const name = (await page.locator('.header-name').boundingBox())!;
+  await page.mouse.move(name.x + 5, name.y + name.height / 2);
+  await expect(page.locator('.ip-node.scene-hovered')).toHaveCount(0);
+  await expect(page.locator('.ip-category.hovered')).toHaveCount(0);
+});

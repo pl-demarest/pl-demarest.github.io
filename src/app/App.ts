@@ -36,12 +36,16 @@ export class App {
     sm.scene.add(particles.backgroundGroup);
     sm.scene.add(particles.foregroundGroup);
 
-    const interaction = new InteractionManager(sm.camera, canvas);
+    const interaction = new InteractionManager(sm.camera, canvas, {
+      onHover: target => {
+        this.store.hoverNode(target?.node?.config.id ?? null, 'scene');
+        this.store.hoverRing(target?.ring.config.id ?? null, 'scene');
+      },
+      onRingClick: ring => this.store.toggleSelection(ring.config.id),
+      onNodeClick: node => this.activateNode(node.config),
+      onBackgroundClick: () => this.store.clearSelection(),
+    });
     interaction.setRings(rings);
-    interaction.setRingHoverCallback(ring => this.store.hoverRing(ring?.config.id ?? null, 'scene'));
-    interaction.setRingClickCallback(ring => this.store.toggleSelection(ring.config.id));
-    interaction.setBackgroundClickCallback(() => this.store.clearSelection());
-    interaction.setHoverCallback(node => this.store.hoverNode(node?.config.id ?? null, 'scene'));
     this.teardowns.push(bindScene(this.store, rings));
 
     sm.onTick(dt => {

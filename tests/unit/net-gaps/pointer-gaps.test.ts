@@ -23,10 +23,13 @@ function setup() {
   }
   const canvas = document.createElement('canvas');
   document.body.appendChild(canvas);
-  const im = new InteractionManager(camera, canvas);
-  im.setRings(rings);
+  // happy-dom has no layout: the canvas fills the window.
+  vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue(
+    { left: 0, top: 0, x: 0, y: 0, width: window.innerWidth, height: window.innerHeight, right: window.innerWidth, bottom: window.innerHeight } as DOMRect,
+  );
   const onRingClick = vi.fn<(r: OrbitalRing) => void>();
-  im.setRingClickCallback(onRingClick);
+  const im = new InteractionManager(camera, canvas, { onRingClick });
+  im.setRings(rings);
   return { camera, canvas, rings, onRingClick };
 }
 
@@ -50,7 +53,9 @@ function ringPoint(rig: Rig, ring: OrbitalRing): { x: number; y: number } {
 }
 
 function fire(target: EventTarget, type: string, p: { x: number; y: number }): void {
-  target.dispatchEvent(new PointerEvent(type, { clientX: p.x, clientY: p.y, bubbles: true, pointerId: 1 }));
+  target.dispatchEvent(
+    new PointerEvent(type, { clientX: p.x, clientY: p.y, bubbles: true, pointerId: 1, pointerType: 'mouse', isPrimary: true }),
+  );
 }
 
 describe('InteractionManager gaps', () => {

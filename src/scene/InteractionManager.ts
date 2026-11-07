@@ -1,198 +1,199 @@
 import * as THREE from 'three';
-import type { OrbitalRing } from './OrbitalRing';
 import type { OrbitalNode } from './OrbitalNode';
+import type { OrbitalRing } from './OrbitalRing';
 
-export type HoverCallback = (node: OrbitalNode | null) => void;
-export type RingHoverCallback = (ring: OrbitalRing | null) => void;
-export type RingClickCallback = (ring: OrbitalRing) => void;
-export type BackgroundClickCallback = () => void;
+/** What a pointer is over: a ring, or one of its nodes. */
+export interface PickTarget {
+  readonly ring: OrbitalRing;
+  readonly node: OrbitalNode | null;
+}
 
+export interface InteractionHandlers {
+  /** The pointer moved onto another target, or off every target or the canvas (null). */
+  onHover?: (target: PickTarget | null) => void;
+  /** A press and release in place on a ring or on one of its nodes. */
+  onRingClick?: (ring: OrbitalRing) => void;
+  /** A press and release in place on a node; reported after onRingClick for its ring. */
+  onNodeClick?: (node: OrbitalNode) => void;
+  /** A press and release in place away from every ring and node. */
+  onBackgroundClick?: () => void;
+}
+
+/** A release closer than this to its press, in CSS px, is a click. */
 const CLICK_THRESHOLD = 5;
+const ORBIT_FORCE = 0.008;
+const TILT_SCALE = 0.005;
+const COUPLING_SCALE = 0.25;
+/** The pointer event interval the drag constants were tuned for, in seconds. */
+const TUNED_EVENT_DT = 0.016;
 
+interface Press {
+  readonly pointerId: number;
+  readonly x: number;
+  readonly y: number;
+  /** What was under the pointer at the press; a click resolves to it. */
+  readonly target: PickTarget | null;
+}
+
+interface Drag {
+  readonly ring: OrbitalRing;
+  lastX: number;
+  lastY: number;
+}
+
+/**
+ * Pointer input on the scene canvas: hover picking, drag-to-spin with
+ * coupled rings, and clicks. A press captures the pointer, so a drag keeps
+ * going over the header and the panel; a release under CLICK_THRESHOLD from
+ * the press is a click on whatever was under the press.
+ */
 export class InteractionManager {
-  private raycaster = new THREE.Raycaster();
-  private pointer = new THREE.Vector2();
+  private readonly camera: THREE.Camera;
+  private readonly canvas: HTMLCanvasElement;
+  private readonly handlers: InteractionHandlers;
+  private readonly raycaster = new THREE.Raycaster();
+  private readonly ndc = new THREE.Vector2();
+
   private rings: OrbitalRing[] = [];
-  private camera: THREE.Camera;
-  private canvas: HTMLCanvasElement;
+  private ringMeshes: THREE.Object3D[] = [];
+  private nodeMeshes: THREE.Object3D[] = [];
+  private readonly targets = new Map<THREE.Object3D, PickTarget>();
 
-  private isDragging = false;
-  private dragPrevX = 0;
-  private dragPrevY = 0;
-  private dragStartX = 0;
-  private dragStartY = 0;
-  private activeRing: OrbitalRing | null = null;
-  private hoveredRing: OrbitalRing | null = null;
-  private hoveredNode: OrbitalNode | null = null;
-  private onHoverChange: HoverCallback | null = null;
-  private onRingHoverChange: RingHoverCallback | null = null;
-  private onRingClick: RingClickCallback | null = null;
-  private onBackgroundClick: BackgroundClickCallback | null = null;
+  /** The canvas rect, cached until the window resizes or scrolls. */
+  private canvasRect: DOMRect | null = null;
+  private press: Press | null = null;
+  private drag: Drag | null = null;
+  private hovered: PickTarget | null = null;
 
-  constructor(camera: THREE.Camera, canvas: HTMLCanvasElement) {
+  constructor(camera: THREE.Camera, canvas: HTMLCanvasElement, handlers: InteractionHandlers = {}) {
     this.camera = camera;
     this.canvas = canvas;
+    this.handlers = handlers;
 
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
     canvas.addEventListener('pointerup', this.onPointerUp);
-    canvas.addEventListener('pointerleave', this.onPointerUp);
+    canvas.addEventListener('pointercancel', this.onPointerCancel);
+    canvas.addEventListener('pointerleave', this.onPointerLeave);
+    window.addEventListener('resize', this.invalidateRect);
+    window.addEventListener('scroll', this.invalidateRect, { capture: true, passive: true });
   }
 
+  /** Replace the pickable rings; rebuilds the pick lists. */
   setRings(rings: OrbitalRing[]): void {
     this.rings = rings;
-  }
-
-  setHoverCallback(cb: HoverCallback): void {
-    this.onHoverChange = cb;
-  }
-
-  setRingHoverCallback(cb: RingHoverCallback): void {
-    this.onRingHoverChange = cb;
-  }
-
-  setRingClickCallback(cb: RingClickCallback): void {
-    this.onRingClick = cb;
-  }
-
-  /** Called for a click on the canvas away from every ring and node. */
-  setBackgroundClickCallback(cb: BackgroundClickCallback): void {
-    this.onBackgroundClick = cb;
-  }
-
-  private updatePointer(e: PointerEvent): void {
-    this.pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
-    this.pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
-  }
-
-  private findRingUnderPointer(): OrbitalRing | null {
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-
-    const hitMeshes = this.rings.map(r => r.hitMesh);
-    const intersects = this.raycaster.intersectObjects(hitMeshes, false);
-    if (intersects.length === 0) return null;
-
-    const hitId = intersects[0]!.object.userData['ringId'] as string | undefined;
-    if (!hitId) return null;
-
-    return this.rings.find(r => r.config.id === hitId) ?? null;
-  }
-
-  private findHoveredNode(): OrbitalNode | null {
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-    const allMeshes = this.rings.flatMap(r => r.nodes.map(n => n.mesh));
-    const intersects = this.raycaster.intersectObjects(allMeshes, false);
-    if (intersects.length === 0) return null;
-
-    const hit = intersects[0]!;
-    const nodeId = hit.object.userData['nodeId'] as string | undefined;
-    if (!nodeId) return null;
-
-    for (const ring of this.rings) {
-      for (const node of ring.nodes) {
-        if (node.config.id === nodeId) return node;
-      }
+    this.targets.clear();
+    for (const ring of rings) {
+      this.targets.set(ring.hitMesh, { ring, node: null });
+      for (const node of ring.nodes) this.targets.set(node.mesh, { ring, node });
     }
-    return null;
+    this.ringMeshes = rings.map(ring => ring.hitMesh);
+    this.nodeMeshes = rings.flatMap(ring => ring.nodes.map(node => node.mesh));
+    this.press = null;
+    this.drag = null;
+    this.setHovered(null);
   }
 
-  private onPointerDown = (e: PointerEvent): void => {
-    this.updatePointer(e);
-    this.activeRing = this.findRingUnderPointer();
-    this.dragStartX = e.clientX;
-    this.dragStartY = e.clientY;
-    if (this.activeRing) {
-      this.isDragging = true;
-      this.dragPrevX = e.clientX;
-      this.dragPrevY = e.clientY;
-      this.activeRing.setHighlighted(true);
-      this.canvas.style.cursor = 'grabbing';
-    }
+  /** The node under the client point, else the ring, else null. */
+  private pick(clientX: number, clientY: number): PickTarget | null {
+    const rect = (this.canvasRect ??= this.canvas.getBoundingClientRect());
+    if (rect.width === 0 || rect.height === 0) return null;
+    this.ndc.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    this.raycaster.setFromCamera(this.ndc, this.camera);
+    const hit =
+      this.raycaster.intersectObjects(this.nodeMeshes, false)[0] ??
+      this.raycaster.intersectObjects(this.ringMeshes, false)[0];
+    return hit ? (this.targets.get(hit.object) ?? null) : null;
+  }
+
+  private readonly invalidateRect = (): void => {
+    this.canvasRect = null;
   };
 
-  private onPointerMove = (e: PointerEvent): void => {
-    this.updatePointer(e);
+  private readonly onPointerDown = (e: PointerEvent): void => {
+    // A second finger, or a mouse button other than the main one, is not a press.
+    if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (this.press) this.endPress();
+    const target = this.pick(e.clientX, e.clientY);
+    this.press = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, target };
+    this.canvas.setPointerCapture(e.pointerId);
+    if (target) this.drag = { ring: target.ring, lastX: e.clientX, lastY: e.clientY };
+    this.updateCursor();
+  };
 
-    if (this.isDragging && this.activeRing) {
-      const dx = e.clientX - this.dragPrevX;
-      const dy = e.clientY - this.dragPrevY;
-      this.dragPrevX = e.clientX;
-      this.dragPrevY = e.clientY;
-
-      const orbitForce = dx * 0.008;
-      this.activeRing.angularVelocity = orbitForce / 0.016;
-
-      const tiltScale = 0.005;
-      this.activeRing.addTiltVelocity(dx * tiltScale, -dy * tiltScale);
-
-      for (const ring of this.rings) {
-        if (ring !== this.activeRing) {
-          const cf = ring.config.couplingFactor;
-          ring.addVelocity(orbitForce * cf * 0.25 / 0.016);
-          ring.addTiltVelocity(dx * tiltScale * cf, -dy * tiltScale * cf);
-        }
-      }
+  private readonly onPointerMove = (e: PointerEvent): void => {
+    if (this.drag && this.press?.pointerId === e.pointerId) {
+      const dx = e.clientX - this.drag.lastX;
+      const dy = e.clientY - this.drag.lastY;
+      this.drag.lastX = e.clientX;
+      this.drag.lastY = e.clientY;
+      this.applyDrag(this.drag.ring, dx, dy);
       return;
     }
-
-    const node = this.findHoveredNode();
-    if (node !== this.hoveredNode) {
-      this.hoveredNode?.setHovered(false);
-      node?.setHovered(true);
-      this.hoveredNode = node;
-      this.onHoverChange?.(node);
-    }
-
-    let ring = this.findRingUnderPointer();
-    if (node) {
-      const parentRing = this.rings.find(r => r.nodes.includes(node));
-      if (parentRing) ring = parentRing;
-    }
-    if (ring !== this.hoveredRing) {
-      if (this.hoveredRing && this.hoveredRing !== this.activeRing) {
-        this.hoveredRing.setHighlighted(false);
-      }
-      this.hoveredRing = ring;
-      if (ring) {
-        ring.setHighlighted(true);
-      }
-      this.onRingHoverChange?.(ring);
-    }
-
-    if (this.hoveredNode) {
-      this.canvas.style.cursor = 'pointer';
-    } else if (this.hoveredRing) {
-      this.canvas.style.cursor = 'grab';
-    } else {
-      this.canvas.style.cursor = 'default';
-    }
+    this.setHovered(this.pick(e.clientX, e.clientY));
   };
 
-  private onPointerUp = (e: PointerEvent): void => {
-    const dx = e.clientX - this.dragStartX;
-    const dy = e.clientY - this.dragStartY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const wasClick = dist < CLICK_THRESHOLD;
+  private readonly onPointerUp = (e: PointerEvent): void => {
+    const press = this.press;
+    if (!press || press.pointerId !== e.pointerId) return;
+    this.endPress();
+    if (Math.hypot(e.clientX - press.x, e.clientY - press.y) >= CLICK_THRESHOLD) return;
 
-    if (wasClick && this.hoveredRing) {
-      this.onRingClick?.(this.hoveredRing);
-    } else if (wasClick && e.type === 'pointerup') {
-      // pointerleave also ends here; leaving the canvas is not a click.
-      this.onBackgroundClick?.();
+    const { target } = press;
+    if (!target) {
+      this.handlers.onBackgroundClick?.();
+      return;
     }
-
-    if (this.activeRing && this.activeRing !== this.hoveredRing) {
-      this.activeRing.setHighlighted(false);
-    }
-    this.isDragging = false;
-    this.activeRing = null;
-
-    if (this.hoveredNode) {
-      this.canvas.style.cursor = 'pointer';
-    } else if (this.hoveredRing) {
-      this.canvas.style.cursor = 'grab';
-    } else {
-      this.canvas.style.cursor = 'default';
-    }
+    this.handlers.onRingClick?.(target.ring);
+    if (target.node) this.handlers.onNodeClick?.(target.node);
   };
+
+  /** The browser took the pointer (a touch scroll, for example): end the press without a click. */
+  private readonly onPointerCancel = (e: PointerEvent): void => {
+    if (this.press?.pointerId === e.pointerId) this.endPress();
+  };
+
+  /** The pointer left the canvas, onto an overlay or out of the window. */
+  private readonly onPointerLeave = (): void => {
+    this.setHovered(null);
+  };
+
+  private endPress(): void {
+    const press = this.press;
+    if (press && this.canvas.hasPointerCapture(press.pointerId)) this.canvas.releasePointerCapture(press.pointerId);
+    this.press = null;
+    this.drag = null;
+    this.updateCursor();
+  }
+
+  private applyDrag(ring: OrbitalRing, dx: number, dy: number): void {
+    const orbitForce = dx * ORBIT_FORCE;
+    ring.angularVelocity = orbitForce / TUNED_EVENT_DT;
+    ring.addTiltVelocity(dx * TILT_SCALE, -dy * TILT_SCALE);
+
+    for (const other of this.rings) {
+      if (other === ring) continue;
+      const cf = other.config.couplingFactor;
+      other.addVelocity((orbitForce * cf * COUPLING_SCALE) / TUNED_EVENT_DT);
+      other.addTiltVelocity(dx * TILT_SCALE * cf, -dy * TILT_SCALE * cf);
+    }
+  }
+
+  private setHovered(target: PickTarget | null): void {
+    const previous = this.hovered;
+    this.hovered = target;
+    if (previous?.ring !== target?.ring || previous?.node !== target?.node) this.handlers.onHover?.(target);
+    this.updateCursor();
+  }
+
+  private updateCursor(): void {
+    let cursor = 'default';
+    if (this.drag) cursor = 'grabbing';
+    else if (this.hovered?.node) cursor = 'pointer';
+    else if (this.hovered) cursor = 'grab';
+    this.canvas.style.cursor = cursor;
+  }
 }

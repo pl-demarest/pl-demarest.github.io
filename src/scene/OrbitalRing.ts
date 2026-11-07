@@ -66,10 +66,6 @@ export class OrbitalRing {
     });
   }
 
-  setHighlighted(_active: boolean): void {
-    // reserved for future use
-  }
-
   setFlatView(flat: boolean): void {
     this.flatMode = flat;
     if (flat) {

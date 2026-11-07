@@ -1,5 +1,6 @@
 import { ORBITALS } from '../../src/scene/config';
 import { advance, expect, openScene, test } from './support/fixtures';
+import { SceneModel } from './support/geometry';
 
 const VIEWPORT = { width: 375, height: 812 };
 
@@ -48,4 +49,13 @@ test('tapping a category selects it and opens its nodes above the bar', async ({
   // A second tap deselects.
   await projects.locator('.ip-category-name').tap();
   await expect(page.locator('.ip-category.selected')).toHaveCount(0);
+});
+
+test('tapping a ring in the scene selects it', async ({ page }) => {
+  // No hover precedes a tap, so the click must come from the ring under the press.
+  // The margin keeps the point clear of the header and the bottom bar.
+  const point = new SceneModel(VIEWPORT, 2000).ringPoint('projects', { margin: 90 });
+  await page.touchscreen.tap(point.x, point.y);
+  await expect(page.locator('.ip-category[data-ring-id="projects"]')).toHaveClass(/\bselected\b/);
+  await expect(page.locator('.ip-category.selected')).toHaveCount(1);
 });
