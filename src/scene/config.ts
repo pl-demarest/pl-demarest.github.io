@@ -94,7 +94,8 @@ export const ORBITALS: OrbitalConfig[] = [
       {
         id: 'code',
         label: 'Code',
-        description: 'Open source libraries, tools, and software projects',
+        description:
+          'Open source libraries, tools, and software projects. PEABrain (VERA-aligned MATLAB): https://github.com/pl-demarest/PEABrain — demo asset drop: /public/peabrain-demo/',
         angleOffset: 0.9 + Math.PI,
         type: 'group',
       },
