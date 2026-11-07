@@ -1,42 +1,28 @@
+// @vitest-environment happy-dom
+// (three's FileLoader, used by loadCloudLayer, needs fetch and ProgressEvent.)
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { CloudLayer } from '../../src/scene/CloudLayer';
+import { CloudLayer, loadCloudLayer } from '../../src/scene/CloudLayer';
 import { OrbitalRing } from '../../src/scene/OrbitalRing';
 import { ORBITALS } from '../../src/scene/config';
-import currentPreset from '../fixtures/cloud-preset-default.json';
+import { buildLinesGlb, glbDataUrl } from './helpers/glb';
 import { ringAngle, step } from './helpers/sim';
 
 // Known defects from the 2026-11-07 audit (audit.json, reports
 // "github-landing" and "repo-hygiene-and-contract"). Each test asserts the
-// CORRECT behaviour and is marked it.fails, so it passes while the bug exists.
-// When a fix lands, its test starts "failing"; flip it to `it` in the fix
-// commit. Test names start with the audit finding id.
-
-type CloudLayerPreset = ConstructorParameters<typeof CloudLayer>[0];
+// CORRECT behaviour. While a bug existed its test was marked it.fails; the
+// fix commit flipped it to `it`, so all of them now guard against a
+// regression. Test names start with the audit finding id. Add a new known
+// defect here as it.fails.
 
 const PUBLICATIONS = ORBITALS.find(o => o.id === 'publications')!;
 
-/** The pre-rename schema CloudLayer reads today (cloud-designer's first commit). */
-const LEGACY_PRESET: CloudLayerPreset = {
-  swirls: [
-    { position: [0, 0, 0], radius: 1.2, falloff: 0.5, shape: 'sphere', scale: [1, 1, 1] },
-    { position: [1.6, 0.3, 0], radius: 1.0, falloff: 0.5, shape: 'ellipsoid', scale: [1.4, 0.8, 1] },
-  ],
-  merge: {
-    resolution: 64,
-    threshold: 1,
-    wireframe: {
-      mode: 'edges',
-      frontPoint: [-2, 0, 0],
-      backPoint: [2.5, 0, 0],
-      numBands: 8,
-      numFlowLines: 16,
-      spiralTwist: Math.PI,
-      showBands: true,
-      showFlowLines: true,
-    },
-  },
-};
+/** Two edges as line-segment pairs. */
+function edges(): THREE.BufferGeometry {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0], 3));
+  return geometry;
+}
 
 function settledFlatRing(): OrbitalRing {
   const r = new OrbitalRing(PUBLICATIONS);
@@ -83,49 +69,50 @@ describe('OrbitalRing known bugs', () => {
   });
 });
 
-describe('CloudLayer known bugs', () => {
-  it.fails('cloud-preset-contract / contract-swirls-merge: accepts a current cloud-designer preset', () => {
-    // tests/fixtures/cloud-preset-default.json is cloud-designer's DEFAULT_PRESET
-    // (src/types/cloud.ts at 3a00166) as ExportPanel.exportJSON writes it.
+describe('CloudLayer (now a GLB consumer, decision D3)', () => {
+  // The landing page reads cloud-designer's binary glTF instead of its preset
+  // JSON, so these three are rewritten against loadCloudLayer and CloudLayer.
+
+  it('cloud-preset-contract / contract-swirls-merge: loads the line segments of a cloud-designer GLB', async () => {
+    const glb = buildLinesGlb([0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0], { translation: [2, 0, 0] });
     const scene = new THREE.Scene();
-    expect(() => new CloudLayer(currentPreset as unknown as CloudLayerPreset, scene)).not.toThrow();
+    const layer = await loadCloudLayer(scene, glbDataUrl(glb), { count: 2 });
+    expect(scene.children).toContain(layer.group);
+    expect(layer.instances).toHaveLength(2);
+    // Two edges, with the node's translation applied.
+    expect(Array.from(layer.instances[0]!.geometry.getAttribute('position').array)).toEqual([
+      2, 0, 0, 3, 0, 0, 3, 0, 0, 3, 1, 0,
+    ]);
+    layer.dispose();
   });
 
-  it.fails('cloud-wrap-offscreen / cloudlayer-stagger-cancels: instances stay within [-spread, spread]', () => {
-    const scene = new THREE.Scene();
+  it('cloud-wrap-offscreen / cloudlayer-stagger-cancels: instances stay within [-spread, spread], evenly spaced', () => {
     const spread = 14;
     const speed = 0.4;
-    const layer = new CloudLayer(LEGACY_PRESET, scene, { count: 3, spread, speed });
-    const groups = scene.children;
-    expect(groups).toHaveLength(3);
-
-    // One full drift cycle; track each instance's X extent.
-    const cycle = (2 * spread) / speed;
-    const dt = 0.1;
-    const min = groups.map(() => Infinity);
-    const max = groups.map(() => -Infinity);
-    for (let t = 0; t < cycle; t += dt) {
-      layer.update(dt);
-      groups.forEach((g, i) => {
-        min[i] = Math.min(min[i]!, g.position.x);
-        max[i] = Math.max(max[i]!, g.position.x);
-      });
-    }
-    const eps = 1e-6;
-    for (let i = 0; i < groups.length; i++) {
-      expect(min[i], `instance ${i} min x`).toBeGreaterThanOrEqual(-spread - eps);
-      expect(max[i], `instance ${i} max x`).toBeLessThanOrEqual(spread + eps);
+    const count = 3;
+    const width = 2 * spread;
+    const layer = new CloudLayer(edges(), { count, spread, speed });
+    const cycle = width / speed;
+    const eps = 1e-9;
+    for (let t = 0; t < 2 * cycle; t += 0.1) {
+      layer.update(0.1);
+      const xs = layer.instances.map(i => i.position.x);
+      for (const x of xs) {
+        expect(x).toBeGreaterThan(-spread - eps);
+        expect(x).toBeLessThanOrEqual(spread + eps);
+      }
+      // Each cloud trails the previous one by width / count along the band.
+      for (let i = 0; i + 1 < count; i++) {
+        const gap = (((xs[i]! - xs[i + 1]!) % width) + width) % width;
+        expect(gap).toBeCloseTo(width / count, 9);
+      }
     }
   });
 
-  it.fails('cloud-line-vs-linesegments / cloudlayer-line-strip: edge pairs render as LineSegments', () => {
-    const scene = new THREE.Scene();
-    new CloudLayer(LEGACY_PRESET, scene, { count: 1 });
-    const lines: THREE.Object3D[] = [];
-    scene.traverse(o => {
-      if (o instanceof THREE.Line) lines.push(o);
-    });
-    expect(lines.length).toBeGreaterThan(0);
-    for (const line of lines) expect(line).toBeInstanceOf(THREE.LineSegments);
+  it('cloud-line-vs-linesegments / cloudlayer-line-strip: edge pairs render as LineSegments sharing one material', () => {
+    const layer = new CloudLayer(edges(), { count: 3 });
+    for (const instance of layer.instances) expect(instance).toBeInstanceOf(THREE.LineSegments);
+    expect(new Set(layer.instances.map(i => i.material)).size).toBe(1);
+    expect(new Set(layer.instances.map(i => i.geometry)).size).toBe(1);
   });
 });

@@ -42,3 +42,9 @@ export interface OrbitLayout {
   /** Each node's angle on the orbit in radians, keyed by node id. */
   nodeAngles: Record<string, number>;
 }
+
+/** The cloud layer: a GLB exported from cloud-designer and served from public/, or null for none. */
+export interface CloudContent {
+  /** Path of the GLB under the site root (for example 'clouds/default.glb'). */
+  asset: string | null;
+}

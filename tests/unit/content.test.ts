@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LAYOUT } from '../../src/content/layout';
-import { SECTIONS } from '../../src/content/site';
+import { CLOUDS, SECTIONS } from '../../src/content/site';
 import type { NodeAction, OrbitLayout, Section } from '../../src/content/types';
 import { validateContent } from '../../src/content/validate';
 import { buildOrbitals, ORBITALS } from '../../src/scene/config';
@@ -19,6 +19,10 @@ describe('site content', () => {
 
   it('gives every node the "none" action, so activating a node does nothing yet', () => {
     for (const node of allNodes()) expect(node.action, node.id).toEqual({ kind: 'none' });
+  });
+
+  it('has no cloud asset yet', () => {
+    expect(CLOUDS).toEqual({ asset: null });
   });
 
   it('keeps URLs out of descriptions: the PEABrain repository is a link on the Code node', () => {

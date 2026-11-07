@@ -1,4 +1,4 @@
-import type { Section } from './types';
+import type { CloudContent, Section } from './types';
 
 /** The site's sections in display order: inner orbit first, top of the panel first. */
 export const SECTIONS: Section[] = [
@@ -67,3 +67,9 @@ export const SECTIONS: Section[] = [
     ],
   },
 ];
+
+/**
+ * No cloud asset exists yet, so the app does not load CloudLayer. When
+ * cloud-designer exports one, put it in public/ and name it here.
+ */
+export const CLOUDS: CloudContent = { asset: null };

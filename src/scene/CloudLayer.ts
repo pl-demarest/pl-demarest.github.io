@@ -1,209 +1,167 @@
 /**
- * CloudLayer — Eastern-style wireframe clouds drifting across the scene bottom.
+ * CloudLayer: wireframe clouds drifting across the bottom of the scene.
  *
- * Reads a CloudPreset JSON (exported from cloud-designer) and reconstructs
- * the cloud geometry for runtime display. Clouds drift horizontally and have
- * a gentle sine Y oscillation. Multiple instances are staggered automatically.
+ * The geometry comes from a binary glTF (GLB) file exported by
+ * cloud-designer (decision D3 of the 2026-11 refactor plan): every line-
+ * segment primitive in the file (glTF mode LINES, loaded as
+ * THREE.LineSegments) is merged into one edge buffer with its transform
+ * applied. Each cloud instance draws that buffer as THREE.LineSegments with
+ * one shared material, drifts from +spread to -spread along X and bobs on Y.
  *
- * Usage:
- *   import cloudPreset from '../../public/cloud-preset.json';
- *   const clouds = new CloudLayer(cloudPreset, scene, { count: 3 });
- *   // in animation loop:
- *   clouds.update(dt);
+ * Not wired into the app yet: content's CLOUDS.asset is null until a GLB
+ * exists. Usage:
+ *   const clouds = await loadCloudLayer(sm.scene, `${import.meta.env.BASE_URL}cloud.glb`);
+ *   sm.onTick(dt => clouds.update(dt));
  */
 
 import * as THREE from 'three';
 
-// Minimal subset of the CloudPreset type we need at runtime
-interface SwirlDef {
-  position: [number, number, number];
-  radius: number;
-  falloff: number;
-  shape: 'sphere' | 'ellipsoid';
-  scale: [number, number, number];
-}
-
-interface MergeSettings {
-  resolution: number;
-  threshold: number;
-  wireframe: {
-    mode: 'edges' | 'spiral';
-    frontPoint: [number, number, number];
-    backPoint: [number, number, number];
-    numBands: number;
-    numFlowLines: number;
-    spiralTwist: number;
-    showBands: boolean;
-    showFlowLines: boolean;
-  };
-}
-
-interface CloudPreset {
-  swirls: SwirlDef[];
-  merge: MergeSettings;
-}
-
 export interface CloudLayerOptions {
-  /** Number of cloud instances to spawn (default 3) */
+  /** Number of cloud instances (default 3). */
   count?: number;
-  /** World-space Y position of the cloud baseline (default -3) */
+  /** Y of the clouds' baseline in world units (default -3). */
   baselineY?: number;
-  /** Horizontal spread (clouds drift from +spread to -spread on X, default 14) */
+  /** Z of the clouds in world units (default -2). */
+  depth?: number;
+  /** Half-width of the drift band: clouds cross from +spread to -spread on X (default 14). */
   spread?: number;
-  /** Drift speed in world units/second (default 0.4) */
+  /** Drift speed in world units per second (default 0.4). */
   speed?: number;
-  /** Y-oscillation amplitude (default 0.15) */
-  oscAmp?: number;
-  /** Y-oscillation period in seconds (default 6) */
-  oscPeriod?: number;
-  /** Scale applied to the cloud geometry (default 1) */
+  /** Y bob amplitude in world units (default 0.15). */
+  bobAmplitude?: number;
+  /** Y bob period in seconds (default 6). */
+  bobPeriod?: number;
+  /** Uniform scale of the cloud geometry (default 1). */
   scale?: number;
+  /** Line opacity (default 0.6). */
+  opacity?: number;
 }
 
-const WIRE_MAT = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6 });
+const DEFAULTS: Required<CloudLayerOptions> = {
+  count: 3,
+  baselineY: -3,
+  depth: -2,
+  spread: 14,
+  speed: 0.4,
+  bobAmplitude: 0.15,
+  bobPeriod: 6,
+  scale: 1,
+  opacity: 0.6,
+};
 
-interface CloudInstance {
-  group: THREE.Group;
-  offsetX: number;   // initial X phase offset
-  time: number;      // per-instance elapsed time
-  oscPhase: number;  // Y oscillation phase offset
+/**
+ * X of cloud `index` (of `count`) at `time` seconds. Every cloud crosses
+ * from +spread to -spread at `speed`, then wraps to +spread; the clouds are
+ * spaced evenly along the band, the only stagger. The result is in
+ * (-spread, spread] for any time, including negative times.
+ */
+export function cloudDriftX(time: number, index: number, count: number, spread: number, speed: number): number {
+  const width = 2 * spread;
+  const travelled = time * speed + (index / count) * width;
+  const u = ((travelled % width) + width) % width;
+  return spread - u;
+}
+
+/**
+ * Merge every THREE.LineSegments under `root` into one position-only
+ * geometry in `root`'s frame. Returns null when `root` holds no segments.
+ */
+export function mergeLineSegments(root: THREE.Object3D): THREE.BufferGeometry | null {
+  root.updateMatrixWorld(true);
+  const toRoot = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const parts: Float32Array[] = [];
+  const v = new THREE.Vector3();
+  const m = new THREE.Matrix4();
+
+  root.traverse(object => {
+    if (!(object as THREE.LineSegments).isLineSegments) return;
+    const { geometry } = object as THREE.LineSegments;
+    const pairs = geometry.index ? geometry.toNonIndexed() : geometry;
+    const position = pairs.getAttribute('position');
+    m.multiplyMatrices(toRoot, object.matrixWorld);
+    const out = new Float32Array(position.count * 3);
+    for (let i = 0; i < position.count; i++) {
+      v.fromBufferAttribute(position, i).applyMatrix4(m);
+      out[i * 3] = v.x;
+      out[i * 3 + 1] = v.y;
+      out[i * 3 + 2] = v.z;
+    }
+    if (pairs !== geometry) pairs.dispose();
+    parts.push(out);
+  });
+
+  if (parts.length === 0) return null;
+  const merged = new Float32Array(parts.reduce((n, p) => n + p.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    merged.set(part, offset);
+    offset += part.length;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(merged, 3));
+  return geometry;
 }
 
 export class CloudLayer {
-  private scene: THREE.Scene;
-  private instances: CloudInstance[] = [];
-  private geometry: THREE.BufferGeometry | null = null;
+  /** Holds every instance; loadCloudLayer adds it to the scene. */
+  readonly group = new THREE.Group();
+  readonly instances: readonly THREE.LineSegments[];
+  private readonly geometry: THREE.BufferGeometry;
+  private readonly material: THREE.LineBasicMaterial;
+  private readonly options: Required<CloudLayerOptions>;
+  private time = 0;
 
-  private spread: number;
-  private speed: number;
-  private baselineY: number;
-  private oscAmp: number;
-  private oscPeriod: number;
-
-  constructor(preset: CloudPreset, scene: THREE.Scene, options: CloudLayerOptions = {}) {
-    this.scene = scene;
-    const {
-      count = 3,
-      baselineY = -3,
-      spread = 14,
-      speed = 0.4,
-      oscAmp = 0.15,
-      oscPeriod = 6,
-      scale = 1,
-    } = options;
-
-    this.spread = spread;
-    this.speed = speed;
-    this.baselineY = baselineY;
-    this.oscAmp = oscAmp;
-    this.oscPeriod = oscPeriod;
-
-    // Build geometry once from preset
-    this.geometry = this.buildGeometry(preset);
-
-    // Spawn instances staggered across the X range
-    for (let i = 0; i < count; i++) {
-      const group = new THREE.Group();
-      group.scale.setScalar(scale);
-
-      if (this.geometry) {
-        const line = new THREE.Line(this.geometry, WIRE_MAT.clone());
-        group.add(line);
-      }
-
-      scene.add(group);
-
-      const offsetX = (i / count) * spread * 2 - spread;
-      this.instances.push({
-        group,
-        offsetX,
-        time: (i / count) * ((spread * 2) / speed), // stagger start
-        oscPhase: (i / count) * Math.PI * 2,
-      });
+  /** Takes ownership of `geometry`: line-segment pairs, as mergeLineSegments returns them. */
+  constructor(geometry: THREE.BufferGeometry, options: CloudLayerOptions = {}) {
+    this.geometry = geometry;
+    this.options = { ...DEFAULTS, ...options };
+    this.material = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: this.options.opacity });
+    const instances: THREE.LineSegments[] = [];
+    for (let i = 0; i < this.options.count; i++) {
+      const instance = new THREE.LineSegments(geometry, this.material);
+      instance.scale.setScalar(this.options.scale);
+      this.group.add(instance);
+      instances.push(instance);
     }
+    this.instances = instances;
+    this.place();
   }
 
+  /** Advance the drift by dt seconds. */
   update(dt: number): void {
-    for (const inst of this.instances) {
-      inst.time += dt;
-
-      // Drift X from +spread to -spread, then wrap
-      const totalCycle = (this.spread * 2) / this.speed;
-      const t = (inst.time % totalCycle) / totalCycle;
-      const x = this.spread - t * this.spread * 2 + inst.offsetX;
-
-      // Clamp wrap
-      const wrappedX = ((x + this.spread) % (this.spread * 2)) - this.spread;
-
-      // Y oscillation
-      const y = this.baselineY + Math.sin(
-        (inst.time / this.oscPeriod) * Math.PI * 2 + inst.oscPhase
-      ) * this.oscAmp;
-
-      inst.group.position.set(wrappedX, y, -2);
-    }
+    this.time += dt;
+    this.place();
   }
 
-  /**
-   * Build a simple EdgesGeometry from the swirl definitions.
-   * For a fully detailed cloud matching the designer's output, export a GLB
-   * and load it with GLTFLoader instead.
-   */
-  private buildGeometry(preset: CloudPreset): THREE.BufferGeometry | null {
-    if (preset.swirls.length === 0) return null;
-
-    // Build approximate geometry from swirl spheres
-    const mergedGeo = new THREE.BufferGeometry();
-    const allPositions: number[] = [];
-    const allIndices: number[] = [];
-    let baseIdx = 0;
-
-    for (const sw of preset.swirls) {
-      const geo = new THREE.SphereGeometry(sw.radius, 10, 7);
-      if (sw.shape === 'ellipsoid') {
-        geo.scale(sw.scale[0], sw.scale[1], sw.scale[2]);
-      }
-      geo.translate(...sw.position);
-
-      const pos = geo.getAttribute('position');
-      for (let i = 0; i < pos.count; i++) {
-        allPositions.push(pos.getX(i), pos.getY(i), pos.getZ(i));
-      }
-
-      const idx = geo.getIndex();
-      if (idx) {
-        for (let i = 0; i < idx.count; i++) {
-          allIndices.push(idx.getX(i) + baseIdx);
-        }
-      }
-      baseIdx += pos.count;
-      geo.dispose();
-    }
-
-    mergedGeo.setAttribute('position', new THREE.Float32BufferAttribute(allPositions, 3));
-    mergedGeo.setIndex(allIndices);
-    mergedGeo.computeVertexNormals();
-
-    const edges = new THREE.EdgesGeometry(mergedGeo, 15);
-    mergedGeo.dispose();
-    return edges;
-  }
-
+  /** Remove the layer from its parent and release the shared geometry and material. */
   dispose(): void {
-    for (const inst of this.instances) {
-      this.scene.remove(inst.group);
-      inst.group.traverse((child) => {
-        if (child instanceof THREE.Line) {
-          child.geometry.dispose();
-          if (Array.isArray(child.material)) {
-            child.material.forEach((m) => m.dispose());
-          } else {
-            child.material.dispose();
-          }
-        }
-      });
-    }
-    this.geometry?.dispose();
-    this.instances = [];
+    this.group.removeFromParent();
+    this.geometry.dispose();
+    this.material.dispose();
   }
+
+  private place(): void {
+    const { count, spread, speed, depth, baselineY, bobAmplitude, bobPeriod } = this.options;
+    this.instances.forEach((instance, i) => {
+      // A sine bob on Y, phase-shifted per cloud.
+      const bob = Math.sin((this.time / bobPeriod + i / count) * Math.PI * 2) * bobAmplitude;
+      instance.position.set(cloudDriftX(this.time, i, count, spread, speed), baselineY + bob, depth);
+    });
+  }
+}
+
+/**
+ * Load a cloud-designer GLB from `url` and add a CloudLayer built from its
+ * line segments to `scene`. GLTFLoader is imported on first use, so pages
+ * without clouds do not download it. Rejects when the file has no line
+ * segments.
+ */
+export async function loadCloudLayer(scene: THREE.Scene, url: string, options: CloudLayerOptions = {}): Promise<CloudLayer> {
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  const gltf = await new GLTFLoader().loadAsync(url);
+  const geometry = mergeLineSegments(gltf.scene);
+  if (!geometry) throw new Error(`${url} has no line segments to draw as clouds`);
+  const layer = new CloudLayer(geometry, options);
+  scene.add(layer.group);
+  return layer;
 }
