@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LAYOUT } from '../../src/content/layout';
 import { CLOUDS, SECTIONS } from '../../src/content/site';
 import type { NodeAction, OrbitLayout, Section } from '../../src/content/types';
-import { validateContent } from '../../src/content/validate';
+import { validateClouds, validateContent } from '../../src/content/validate';
 import { buildOrbitals, ORBITALS } from '../../src/scene/config';
 
 /** A deep copy of the real content, so each case can break one thing. */
@@ -23,6 +23,7 @@ describe('site content', () => {
 
   it('has no cloud asset yet', () => {
     expect(CLOUDS).toEqual({ asset: null });
+    expect(validateClouds(CLOUDS)).toEqual([]);
   });
 
   it('keeps URLs out of descriptions: the PEABrain repository is a link on the Code node', () => {
@@ -163,6 +164,26 @@ describe('validateContent', () => {
       'section "projects" has no layout',
       'layout "elsewhere" has no section',
     ]);
+  });
+});
+
+describe('validateClouds', () => {
+  it('accepts no asset, or a .glb path under the site root', () => {
+    expect(validateClouds({ asset: null })).toEqual([]);
+    expect(validateClouds({ asset: 'clouds/default.glb' })).toEqual([]);
+  });
+
+  it('reports an asset path that would leave the site root or is not a GLB file', () => {
+    // App loads `${import.meta.env.BASE_URL}${asset}`: with the base '/',
+    // '/clouds/default.glb' becomes '//clouds/default.glb', the host 'clouds'.
+    const leading = 'must be a path under the site root, without a leading "/"';
+    const cases: Array<[string, string]> = [
+      ['/clouds/default.glb', `CLOUDS.asset "/clouds/default.glb" ${leading}`],
+      ['//cdn.example/cloud.glb', `CLOUDS.asset "//cdn.example/cloud.glb" ${leading}`],
+      ['https://cdn.example/cloud.glb', `CLOUDS.asset "https://cdn.example/cloud.glb" ${leading}`],
+      ['clouds/default.gltf', 'CLOUDS.asset "clouds/default.gltf" must name a .glb file'],
+    ];
+    for (const [asset, message] of cases) expect(validateClouds({ asset }), asset).toEqual([message]);
   });
 });
 

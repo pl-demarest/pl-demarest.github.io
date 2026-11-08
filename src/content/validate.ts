@@ -1,5 +1,5 @@
 import { own } from './own';
-import type { Link, NodeAction, OrbitLayout, Section } from './types';
+import type { CloudContent, Link, NodeAction, OrbitLayout, Section } from './types';
 
 /**
  * An id becomes a DOM id, an aria-controls value and a key in CSS
@@ -55,6 +55,20 @@ export function validateContent(
     if (!sectionIds.has(id)) problems.push(`layout "${id}" has no section`);
   }
   return problems;
+}
+
+/**
+ * Check the cloud asset: none, or a .glb file under the site root. The page
+ * loads `${import.meta.env.BASE_URL}${asset}`, so a leading '/' would make
+ * '//clouds/default.glb', which a browser reads as the host 'clouds'.
+ */
+export function validateClouds(clouds: CloudContent): string[] {
+  const { asset } = clouds;
+  if (asset === null) return [];
+  if (asset.startsWith('/') || !isSitePath(`/${asset}`) || /^[a-z][a-z0-9+.-]*:/i.test(asset)) {
+    return [`CLOUDS.asset "${asset}" must be a path under the site root, without a leading "/"`];
+  }
+  return asset.endsWith('.glb') ? [] : [`CLOUDS.asset "${asset}" must name a .glb file`];
 }
 
 function checkOrbit(orbit: OrbitLayout, section: Section, where: string): string[] {

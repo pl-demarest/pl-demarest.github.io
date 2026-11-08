@@ -9,7 +9,7 @@ For Phase 2 contributors: how the landing page's sections, nodes, links and node
 | `src/content/types.ts` | The types: `Section`, `SiteNode`, `NodeAction`, `Link`, `OrbitLayout`, `CloudContent` |
 | `src/content/site.ts` | `SECTIONS` (sections and their nodes, in display order) and `CLOUDS` |
 | `src/content/layout.ts` | `LAYOUT`: where each section's orbit sits, keyed by section id |
-| `src/content/validate.ts` | `validateContent()`, run by `tests/unit/content.test.ts` |
+| `src/content/validate.ts` | `validateContent()` and `validateClouds()`, run by `tests/unit/content.test.ts` |
 | `src/scene/config.ts` | `ORBITALS = buildOrbitals(SECTIONS, LAYOUT)`: each section joined with its layout, which the scene draws |
 
 Each section is one ring in the scene and one category in the panel. Each node is a wireframe sphere on its ring and a button under its category.
@@ -94,7 +94,9 @@ With `prefers-reduced-motion`, rings do not turn on their own and the flat view 
 - Actions: `external` needs an absolute `http(s)` URL; `route` a path that starts with `/` and that a browser resolves on this site (not `//evil.example`, `/\evil.example` or a path with a tab or newline in it); `suborbital` an existing section other than its own; any other kind is reported.
 - Links: a non-empty label, and an `href` that is an absolute `http(s)` URL or a path on this site, as for `route`.
 
-It does not check signs or sizes. `config.test.ts` checks that radii and coupling factors are positive, that no speed is zero (a negative speed is allowed), and that the rings are ordered inside out, and it pins today's section and node labels.
+`validateClouds(CLOUDS)` checks the cloud asset: `null`, or a path under the site root without a leading `/` that names a `.glb` file; `content.test.ts` runs it too.
+
+`validateContent` does not check signs or sizes. `config.test.ts` checks that radii and coupling factors are positive, that no speed is zero (a negative speed is allowed), and that the rings are ordered inside out, and it pins today's section and node labels.
 
 ## Run the tests
 
@@ -146,7 +148,7 @@ Export a cloud from cloud-designer's Export panel (button names as of November 2
 Use it:
 
 1. Put the file under `public/`, for example `public/clouds/default.glb`; Vite serves it at `/clouds/default.glb`.
-2. Set `CLOUDS.asset` in `site.ts` to `'clouds/default.glb'`, and update the 'has no cloud asset yet' test.
+2. Set `CLOUDS.asset` in `site.ts` to `'clouds/default.glb'`, without a leading `/` (`validateClouds` reports one), and update the 'has no cloud asset yet' test.
 3. Load it in `App.createScene`, where the other scene objects are made. A sketch; App imports neither `CLOUDS` nor `loadCloudLayer` yet (`import.meta.env` has its types from `src/vite-env.d.ts`):
 
    ```ts
