@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { ORBITALS } from '../../src/scene/config';
-import { SCENE_FRAME_MS, advance, drag, expect, openScene, test } from './support/fixtures';
+import { FRAME_MS, SCENE_FRAME_MS, advance, drag, expect, openScene, test } from './support/fixtures';
 import { SceneModel } from './support/geometry';
 
 const VIEWPORT = { width: 1280, height: 800 };
@@ -79,6 +79,38 @@ test('dragging a ring changes the rendered scene and does not select it', async 
   const after = await canvas.screenshot();
   expect(after.equals(before)).toBe(false);
   await expect(page.locator('.ip-category.selected')).toHaveCount(0);
+});
+
+test('a drag across the panel does not hover its categories', async ({ page }) => {
+  // The panel is centred vertically, so a category that expands moves the
+  // names: measure them once its transitions have finished.
+  const settled = () => page.waitForFunction(() => document.getAnimations().length === 0);
+  const nameCentre = async (id: string) => {
+    await settled();
+    const box = (await category(page, id).locator('.ip-category-name').boundingBox())!;
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  };
+
+  const start = model.ringPoint('projects', { maxX: 900 });
+  await page.mouse.move(start.x, start.y);
+  await expect(category(page, 'projects')).toHaveClass(/\bhovered\b/); // the scene's ring hover
+  const name = await nameCentre('publications');
+  await page.mouse.down();
+  // Onto the publications name, one 60 Hz frame per move. The scene holds
+  // the pointer captured, so every move still drags the ring.
+  for (let i = 1; i <= 8; i++) {
+    await advance(page, FRAME_MS);
+    await page.mouse.move(start.x + ((name.x - start.x) * i) / 8, start.y + ((name.y - start.y) * i) / 8);
+  }
+  await expect(page.locator('#scene')).toHaveCSS('cursor', 'grabbing');
+  await expect(category(page, 'publications')).not.toHaveClass(/\bhovered\b/);
+  await expect(page.locator('.ip-category.hovered')).toHaveCount(1);
+
+  // After the release the panel hovers under the pointer again.
+  await page.mouse.up();
+  const again = await nameCentre('publications');
+  await page.mouse.move(again.x, again.y);
+  await expect(category(page, 'publications')).toHaveClass(/\bhovered\b/);
 });
 
 test('a press whose release never reaches the page does not keep dragging', async ({ page }) => {

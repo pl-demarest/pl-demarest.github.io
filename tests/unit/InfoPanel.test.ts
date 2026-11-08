@@ -256,6 +256,26 @@ describe('InfoPanel', () => {
     expect(hovered(ctx.root)).toEqual([]);
   });
 
+  it('ignores the moves of a pointer the scene holds captured, as in a drag across the panel', () => {
+    vi.spyOn(ctx.root, 'getBoundingClientRect').mockReturnValue(rect(900, 300, 100, 90));
+    ORBITALS.forEach((o, i) => {
+      vi.spyOn(nameButton(ctx.root, o.id), 'getBoundingClientRect').mockReturnValue(rect(940, 300 + i * 30, 60, 20));
+    });
+    // A press on the scene captures the pointer, so its moves target the
+    // canvas wherever they happen and bubble from there to the document.
+    const moveOnScene = (x: number, y: number) =>
+      ctx.canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
+
+    ctx.canvas.setPointerCapture(1);
+    moveOnScene(960, 340); // over the experiences name
+    expect(hovered(ctx.root)).toEqual([]);
+
+    // Released, the same pointer hovers the panel again.
+    ctx.canvas.releasePointerCapture(1);
+    moveOnScene(960, 340);
+    expect(hovered(ctx.root)).toEqual(['experiences']);
+  });
+
   it('reads the rects once, and again only after a resize, a scroll or a change of expansion', () => {
     const panelRect = vi.spyOn(ctx.root, 'getBoundingClientRect').mockReturnValue(rect(900, 300, 100, 90));
     const nameRects = ORBITALS.map((o, i) =>

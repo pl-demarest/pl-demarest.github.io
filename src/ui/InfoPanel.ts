@@ -233,6 +233,10 @@ export class InfoPanel {
   };
 
   private readonly onDocumentPointerMove = (e: PointerEvent): void => {
+    // A press on the scene captures its pointer: the moves of a drag target
+    // the scene wherever the pointer is and reach the document only by
+    // bubbling. They belong to the drag, not to the panel's hover.
+    if (this.sceneElement?.hasPointerCapture(e.pointerId)) return;
     const { panel, names } = this.measure();
     const x = e.clientX;
     const y = e.clientY;
