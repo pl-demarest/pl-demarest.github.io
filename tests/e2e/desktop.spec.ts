@@ -343,6 +343,20 @@ test('picking follows the canvas when it changes size without a window resize', 
   await expect(page.locator('#scene')).toHaveCSS('cursor', 'pointer');
 });
 
+test('the drawing buffer follows the pixel ratio after a browser zoom', async ({ page }) => {
+  // A zoom changes devicePixelRatio and resizes the window. Here the ratio
+  // changes through Chrome's device emulation, which sends no resize, so
+  // the test sends the one a zoom would.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 2, mobile: false });
+  await page.waitForFunction(() => window.devicePixelRatio === 2);
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  await advance(page, 32);
+  const canvas = page.locator('#scene');
+  await expect(canvas).toHaveAttribute('width', '2560');
+  await expect(canvas).toHaveAttribute('height', '1600');
+});
+
 test('moving from a scene node onto the header clears the scene hover', async ({ page }) => {
   const target = model.nodePoint('papers');
   await page.mouse.move(target.x, target.y);

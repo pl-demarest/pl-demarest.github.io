@@ -18,6 +18,11 @@ export function cameraPresetFor(width: number): CameraPreset {
 /** Longest step passed to tick callbacks, in seconds, so a stalled tab does not jump. */
 const MAX_DT = 0.05;
 
+/** Device pixels per CSS pixel for the drawing buffer, at most 2. */
+function pixelRatio(): number {
+  return Math.min(window.devicePixelRatio, 2);
+}
+
 export class SceneManager {
   readonly scene: THREE.Scene;
   readonly camera: THREE.PerspectiveCamera;
@@ -36,12 +41,29 @@ export class SceneManager {
     this.camera = new THREE.PerspectiveCamera(DESKTOP_CAMERA.fov, aspect, 0.1, 100);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(pixelRatio());
     this.renderer.setSize(window.innerWidth, window.innerHeight);
 
     this.updateCameraForViewport(window.innerWidth, window.innerHeight);
 
     window.addEventListener('resize', this.onResize, { signal: this.listeners.signal });
+    this.watchPixelRatio();
+  }
+
+  /**
+   * A browser zoom changes the pixel ratio with a resize; a move to a
+   * display with another scale changes it without one. A resolution query
+   * on the current ratio reports that change, then watches the new ratio.
+   */
+  private watchPixelRatio(): void {
+    window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener(
+      'change',
+      () => {
+        this.onResize();
+        this.watchPixelRatio();
+      },
+      { once: true, signal: this.listeners.signal },
+    );
   }
 
   private updateCameraForViewport(w: number, h: number): void {
@@ -84,6 +106,7 @@ export class SceneManager {
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.updateCameraForViewport(w, h);
+    this.renderer.setPixelRatio(pixelRatio());
     this.renderer.setSize(w, h);
   };
 }
