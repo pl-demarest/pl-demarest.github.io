@@ -239,6 +239,14 @@ test('a focused node button shows its focus ring on all four sides', async ({ pa
   }
 });
 
+test('each navigation landmark has a name', async ({ page }) => {
+  // Two navigation landmarks, the header's and the panel's: a landmark
+  // list in a screen reader tells them apart by name.
+  await expect(page.getByRole('navigation')).toHaveCount(2);
+  await expect(page.getByRole('navigation', { name: 'Site', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('navigation', { name: 'Sections', exact: true })).toHaveCount(1);
+});
+
 test('collapsed categories keep their node buttons out of the accessibility tree', async ({ page }) => {
   await expect(page.locator('#info-panel')).toMatchAriaSnapshot(`
     - navigation "Sections":

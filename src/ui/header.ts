@@ -6,7 +6,7 @@ export function initHeader(): void {
     <div class="header-top">
       <span class="header-name">Phillip Demarest, PhD</span>
     </div>
-    <nav class="header-nav">
+    <nav class="header-nav" aria-label="Site">
       <button class="header-menu-btn" aria-label="Menu">&#9776;</button>
       <a href="#" class="header-link">About</a>
       <a href="#" class="header-link">Projects</a>
