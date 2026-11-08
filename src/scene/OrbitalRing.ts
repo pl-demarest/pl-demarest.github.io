@@ -13,13 +13,20 @@ const FLAT_LERP_SPEED = 0.18;
 const RETURN_RATE = 0.01;
 /** A flat ring snaps face-on once both tilt angles are this close, in radians. */
 const FLAT_SNAP = 0.001;
+/**
+ * Per 60 Hz frame, friction followed by the return pull keeps
+ * FRICTION * (1 - RETURN_RATE) of the gap between the spin and the cruise,
+ * so it closes this share of the gap.
+ */
+const SETTLE_RATE = 1 - FRICTION * (1 - RETURN_RATE);
 
 /**
  * Friction and the return pull balance where
- * v = RETURN_RATE * s / (1 - FRICTION * (1 - RETURN_RATE)), about 0.25189 s
- * at 60 Hz: a ring whose return speed is s cruises at this ratio of s.
+ * v = RETURN_RATE * s / (1 - FRICTION * (1 - RETURN_RATE)), about 0.25189 s:
+ * a ring whose return speed is s cruises at this ratio of s, at any frame
+ * rate.
  */
-export const CRUISE_RATIO = RETURN_RATE / (1 - FRICTION * (1 - RETURN_RATE));
+export const CRUISE_RATIO = RETURN_RATE / SETTLE_RATE;
 
 export class OrbitalRing {
   readonly group: THREE.Group;
@@ -184,9 +191,14 @@ export class OrbitalRing {
       this._tiltVelocityX = damp(this._tiltVelocityX, FRICTION, dt);
       this._tiltVelocityZ = damp(this._tiltVelocityZ, FRICTION, dt);
 
-      this._angularVelocity = damp(this._angularVelocity, FRICTION, dt);
-      if (this.autoRotate && Math.abs(this._angularVelocity) < Math.abs(this.returnSpeed) * 0.5) {
-        this._angularVelocity = lerpToward(this._angularVelocity, this.returnSpeed, RETURN_RATE, dt);
+      const damped = damp(this._angularVelocity, FRICTION, dt);
+      if (this.autoRotate && Math.abs(damped) < Math.abs(this.returnSpeed) * 0.5) {
+        // Friction and the return pull together, as dt * 60 frames of the
+        // per-frame pair apply them: a 60 Hz step is the per-frame pair
+        // itself, and every frame rate settles at the cruise, config.speed.
+        this._angularVelocity = lerpToward(this._angularVelocity, this.config.speed, SETTLE_RATE, dt);
+      } else {
+        this._angularVelocity = damped;
       }
     }
 

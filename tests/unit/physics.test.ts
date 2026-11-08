@@ -85,6 +85,17 @@ describe('frame-rate independence (acceptance: within 2 % of 60 Hz after 1 s)', 
     });
   }
 
+  it('every ring settles at its cruise, config.speed, at any frame rate', () => {
+    // layout.ts: speed "is the cruise angular velocity in rad/s: the speed
+    // the viewer sees once a ring settles".
+    for (const hz of [30, 60, 120, 144, 240]) {
+      for (const cfg of ORBITALS) {
+        const settled = after(hz, 60, () => new OrbitalRing(cfg), (r, dt) => r.update(dt), r => r.angularVelocity);
+        expect(rel(settled, cfg.speed), `${cfg.id} at ${hz} Hz`).toBeLessThan(0.005);
+      }
+    }
+  });
+
   it('the flat-view ease and the ease back to the tilt', () => {
     // Read 1/6 s in, while both eases are moving (10 frames at 60 Hz).
     const flatten = () => {
