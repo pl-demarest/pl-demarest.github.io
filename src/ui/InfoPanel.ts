@@ -211,7 +211,8 @@ export class InfoPanel {
       const expanded = hovered || selected;
       const wasExpanded = category.name.getAttribute('aria-expanded') === 'true';
       category.name.setAttribute('aria-expanded', String(expanded));
-      // A collapsed list is only squeezed to zero height by CSS: its node
+      // CSS only shrinks a collapsed list to its padding (on mobile a 19 px
+      // box above the bar) and lets the pointer through it; its node
       // buttons leave the accessibility tree here.
       if (expanded) category.list.removeAttribute('aria-hidden');
       else category.list.setAttribute('aria-hidden', 'true');
