@@ -120,6 +120,22 @@ describe('info panel hover-zone edges', () => {
       expect(hovered(root)).toEqual([]);
     });
 
+    it('an open node list above the bar is part of the zone, beyond the 48 px', () => {
+      // Publications' three rows open above the bar: Presentations 9.6-31.0,
+      // Patents 31.0-52.4 and Papers 52.4-73.8 px above it, under 9.6 px of
+      // padding (Chrome at 375 x 812).
+      const list = root.querySelector<HTMLElement>('#ip-nodes-publications')!;
+      vi.spyOn(list, 'getBoundingClientRect').mockReturnValue(rect(0, 760 - 83.4, 375, 83.4));
+      move(60, 785); // on the Publications name
+      expect(hovered(root)).toEqual(['publications']);
+      for (const above of [20.3, 41.7, 63.1, 80]) {
+        move(60, 760 - above);
+        expect(hovered(root), `${above} px above the bar`).toEqual(['publications']);
+      }
+      move(60, 760 - 90); // above the list
+      expect(hovered(root)).toEqual([]);
+    });
+
     it('the nearest name is chosen along x', () => {
       // Every name has the same y, so a y-distance pick would always return
       // the first category.

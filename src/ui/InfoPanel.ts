@@ -272,13 +272,21 @@ export class InfoPanel {
     const x = e.clientX;
     const y = e.clientY;
     const mobile = isMobileWidth(window.innerWidth);
+    const { hoveredRing, selectedRingId } = this.store.getState();
 
     const topInflate = mobile ? PANEL_INFLATE_TOP_MOBILE : PANEL_INFLATE_V;
+    // An open node list is part of the zone: on mobile it opens above the
+    // bar, outside the panel's box and beyond its inflation.
+    const open = [hoveredRing?.id, selectedRingId, this.keyboardFocusId];
     const insidePanel =
-      x >= panel.left - PANEL_INFLATE_LEFT &&
-      x <= panel.right &&
-      y >= panel.top - topInflate &&
-      y <= panel.bottom + PANEL_INFLATE_V;
+      (x >= panel.left - PANEL_INFLATE_LEFT &&
+        x <= panel.right &&
+        y >= panel.top - topInflate &&
+        y <= panel.bottom + PANEL_INFLATE_V) ||
+      open.some(id => {
+        const list = id == null ? undefined : boxes.get(id)?.list;
+        return list !== undefined && contains(list, x, y);
+      });
     if (!insidePanel) {
       this.store.hoverRing(null, 'panel');
       return;
@@ -286,7 +294,6 @@ export class InfoPanel {
 
     // Once a category is hovered, only a direct hit on another name switches
     // it; moving across the expanded nodes keeps it.
-    const { hoveredRing, selectedRingId } = this.store.getState();
     if (hoveredRing) {
       const hit = findNameHit(names, x, y, selectedRingId);
       if (hit !== null && hit !== hoveredRing.id) this.store.hoverRing(hit, 'panel');

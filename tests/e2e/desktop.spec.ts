@@ -108,6 +108,29 @@ test('a click on the selected name deselects it after the pointer comes to rest 
   }
 });
 
+test.describe('in a window 700 px wide, used with a mouse', () => {
+  test.use({ viewport: { width: 700, height: 800 } });
+
+  test('a category hovered from the bottom bar stays open while the pointer climbs its list', async ({ page }) => {
+    // The list opens above the bar, outside the panel's box; its top row
+    // sits more than 48 px above the bar.
+    const name = category(page, 'publications').locator('.ip-category-name');
+    const nb = (await name.boundingBox())!;
+    await page.mouse.move(nb.x + nb.width / 2, nb.y + nb.height / 2);
+    await expect(category(page, 'publications')).toHaveClass(/\bhovered\b/);
+    await page.waitForFunction(() => document.getAnimations().length === 0);
+    const barTop = (await page.locator('#info-panel').boundingBox())!.y;
+    const nodes = category(page, 'publications').locator('.ip-node');
+    for (let i = (await nodes.count()) - 1; i >= 0; i--) {
+      const box = (await nodes.nth(i).boundingBox())!;
+      const above = barTop - (box.y + box.height / 2);
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+      await expect(category(page, 'publications'), `${above.toFixed(0)} px above the bar`).toHaveClass(/\bhovered\b/);
+    }
+    expect(barTop - (await nodes.first().boundingBox())!.y).toBeGreaterThan(48);
+  });
+});
+
 test('clicking outside the panel deselects', async ({ page }) => {
   await category(page, 'projects').locator('.ip-category-name').click();
   await expect(category(page, 'projects')).toHaveClass(/\bselected\b/);
