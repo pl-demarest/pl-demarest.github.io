@@ -71,8 +71,12 @@ export class InteractionManager {
   private nodeMeshes: THREE.Object3D[] = [];
   private readonly targets = new Map<THREE.Object3D, PickTarget>();
 
-  /** The canvas rect, cached until the window resizes or scrolls. */
+  /**
+   * The canvas rect, cached until the canvas changes size, the window
+   * resizes or anything scrolls. A zero-sized rect is never cached.
+   */
   private canvasRect: DOMRect | null = null;
+  private readonly resizeObserver: ResizeObserver;
   private press: Press | null = null;
   private drag: Drag | null = null;
   private hovered: PickTarget | null = null;
@@ -90,12 +94,16 @@ export class InteractionManager {
     canvas.addEventListener('pointerleave', this.onPointerLeave, { signal });
     window.addEventListener('resize', this.invalidateRect, { signal });
     window.addEventListener('scroll', this.invalidateRect, { capture: true, passive: true, signal });
+    // A layout change can resize the canvas without a window resize.
+    this.resizeObserver = new ResizeObserver(this.invalidateRect);
+    this.resizeObserver.observe(canvas);
   }
 
   /** Stop listening and let go of any press. */
   dispose(): void {
     this.endPress();
     this.listeners.abort();
+    this.resizeObserver.disconnect();
     this.rings = [];
     this.ringMeshes = [];
     this.nodeMeshes = [];
@@ -121,8 +129,11 @@ export class InteractionManager {
 
   /** The node under the client point, else the ring, else null. */
   private pick(clientX: number, clientY: number): PickTarget | null {
-    const rect = (this.canvasRect ??= this.canvas.getBoundingClientRect());
+    const rect = this.canvasRect ?? this.canvas.getBoundingClientRect();
+    // A canvas with no size (hidden, or not laid out yet) picks nothing, and
+    // its rect is not kept, so the next pick measures again.
     if (rect.width === 0 || rect.height === 0) return null;
+    this.canvasRect = rect;
     this.ndc.set(
       ((clientX - rect.left) / rect.width) * 2 - 1,
       -((clientY - rect.top) / rect.height) * 2 + 1,

@@ -216,6 +216,98 @@ describe('InteractionManager', () => {
     expect(rig.onHover).toHaveBeenLastCalledWith({ ring, node: null });
   });
 
+  it('a pick while the canvas has no size picks nothing and does not stop later picks', () => {
+    // A canvas that is hidden, or not laid out yet, measures 0 x 0.
+    const ring = rig.rings[2]!;
+    const p = ringPoint(rig, ring);
+    vi.mocked(rig.canvas.getBoundingClientRect).mockReturnValueOnce(
+      { left: 0, top: 0, x: 0, y: 0, width: 0, height: 0, right: 0, bottom: 0 } as DOMRect,
+    );
+    fire(rig.canvas, 'pointermove', p);
+    expect(rig.onHover).not.toHaveBeenCalled();
+    // The canvas has its size again; no resize or scroll event came in between.
+    fire(rig.canvas, 'pointermove', p);
+    expect(rig.onHover).toHaveBeenLastCalledWith({ ring, node: null });
+  });
+
+  describe('when the canvas changes size without a window resize', () => {
+    // happy-dom's ResizeObserver never calls back; this one is called by hand.
+    class FakeResizeObserver {
+      static instances: FakeResizeObserver[] = [];
+      readonly observed = new Set<Element>();
+      constructor(readonly callback: ResizeObserverCallback) {
+        FakeResizeObserver.instances.push(this);
+      }
+      observe(element: Element): void {
+        this.observed.add(element);
+      }
+      unobserve(element: Element): void {
+        this.observed.delete(element);
+      }
+      disconnect(): void {
+        this.observed.clear();
+      }
+      notify(): void {
+        this.callback([], this as unknown as ResizeObserver);
+      }
+    }
+
+    beforeEach(() => {
+      FakeResizeObserver.instances = [];
+      vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+      document.body.innerHTML = '';
+      rig = buildRig();
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    const canvasObserver = () => FakeResizeObserver.instances.find(o => o.observed.has(rig.canvas));
+
+    it('re-measures the canvas after a ResizeObserver notification', () => {
+      const observer = canvasObserver();
+      expect(observer, 'a ResizeObserver on the canvas').toBeDefined();
+      const full = rig.box;
+      fire(rig.canvas, 'pointermove', EMPTY); // measures and keeps the full-window rect
+
+      // The canvas shrinks to the top-left quarter of the window.
+      const quarter = { left: 0, top: 0, width: full.width / 2, height: full.height / 2 };
+      vi.mocked(rig.canvas.getBoundingClientRect).mockReturnValue({
+        ...quarter,
+        x: 0,
+        y: 0,
+        right: quarter.width,
+        bottom: quarter.height,
+      } as DOMRect);
+      observer!.notify();
+
+      // A point on the inner ring as the smaller canvas shows it, which the
+      // full-window rect would aim away from that ring.
+      const ring = rig.rings[0]!;
+      let p: { x: number; y: number } | null = null;
+      for (let k = 0; k < 64 && !p; k++) {
+        const theta = (k / 64) * Math.PI * 2;
+        const local = new THREE.Vector3(Math.cos(theta) * ring.config.radiusX, 0, Math.sin(theta) * ring.config.radiusY);
+        rig.box = quarter;
+        const q = toClient(rig, ring.group.localToWorld(local));
+        const inQuarter = pick(rig, q);
+        rig.box = full;
+        const inFull = pick(rig, q);
+        if (!inQuarter.nodeHit && inQuarter.ringHit?.object === ring.hitMesh && inFull.ringHit?.object !== ring.hitMesh) p = q;
+      }
+      expect(p).not.toBeNull();
+
+      fire(rig.canvas, 'pointermove', p!);
+      expect(rig.onHover).toHaveBeenLastCalledWith({ ring, node: null });
+    });
+
+    it('dispose() stops observing the canvas', () => {
+      expect(canvasObserver()).toBeDefined();
+      rig.im.dispose();
+      expect(canvasObserver()).toBeUndefined();
+    });
+  });
+
   it('a press and release in place over a hovered ring is a ring click', () => {
     const ring = rig.rings[1]!;
     const p = ringPoint(rig, ring);
