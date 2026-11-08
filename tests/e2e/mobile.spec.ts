@@ -89,6 +89,31 @@ test('collapsed node lists above the bar let taps through', async ({ page }) => 
   await expect(last).toBeFocused();
 });
 
+test('a finger that slides on the bar leaves no category open once it lifts', async ({ page }) => {
+  // The panel reads the finger's moves as a hover, as it does a mouse's,
+  // until the browser takes the gesture. No move outside the panel comes
+  // after that, and a tap or a drag on the scene does not end that hover.
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    (window as unknown as { seen: string[] }).seen = seen;
+    new MutationObserver(() => {
+      for (const el of document.querySelectorAll<HTMLElement>('.ip-category.hovered')) seen.push(el.dataset['ringId']!);
+    }).observe(document.getElementById('info-panel')!, { subtree: true, attributeFilter: ['class'] });
+  });
+  const box = (await page.locator('.ip-category[data-ring-id="publications"] .ip-category-name').boundingBox())!;
+  const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+  for (let i = 1; i <= 5; i++) {
+    await page.waitForTimeout(20); // the browser's gesture detector runs in real time
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: start.x + i * 6, y: start.y }] });
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+
+  await expect.poll(() => page.evaluate(() => (window as unknown as { seen: string[] }).seen)).toContain('publications');
+  await expect(page.locator('.ip-category.hovered')).toHaveCount(0);
+});
+
 test('tapping a ring in the scene selects it', async ({ page }) => {
   // No hover precedes a tap, so the click must come from the ring under the press.
   // The margin keeps the point clear of the header and the bottom bar.

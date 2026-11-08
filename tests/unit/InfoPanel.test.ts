@@ -276,6 +276,27 @@ describe('InfoPanel', () => {
     expect(hovered(ctx.root)).toEqual(['experiences']);
   });
 
+  it('ends its pointer hover when the pointer leaves the page, and leaves a scene hover alone', () => {
+    vi.spyOn(ctx.root, 'getBoundingClientRect').mockReturnValue(rect(900, 300, 100, 90));
+    ORBITALS.forEach((o, i) => {
+      vi.spyOn(nameButton(ctx.root, o.id), 'getBoundingClientRect').mockReturnValue(rect(940, 300 + i * 30, 60, 20));
+    });
+    // The root element gets pointerleave when a finger lifts or the browser
+    // takes the touch, and when a mouse leaves the window; no move outside
+    // the panel follows.
+    const leavePage = () => document.documentElement.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'touch' }));
+
+    move(960, 340); // over the experiences name
+    expect(hovered(ctx.root)).toEqual(['experiences']);
+    leavePage();
+    expect(hovered(ctx.root)).toEqual([]);
+
+    // The scene ends its own hover when the pointer leaves the canvas.
+    ctx.store.hoverRing('projects', 'scene');
+    leavePage();
+    expect(hovered(ctx.root)).toEqual(['projects']);
+  });
+
   it('reads the rects once, and again only after a resize, a scroll or a change of expansion', () => {
     const panelRect = vi.spyOn(ctx.root, 'getBoundingClientRect').mockReturnValue(rect(900, 300, 100, 90));
     const nameRects = ORBITALS.map((o, i) =>

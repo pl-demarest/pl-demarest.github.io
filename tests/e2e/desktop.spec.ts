@@ -50,6 +50,16 @@ test('hovering near a category name expands its nodes', async ({ page }) => {
   await expect.poll(() => nodes.evaluate(el => el.getBoundingClientRect().height)).toBe(0);
 });
 
+test('a mouse that leaves the window from the panel leaves no category open', async ({ page }) => {
+  const box = (await category(page, 'experiences').locator('.ip-category-name').boundingBox())!;
+  await page.mouse.move(box.x - 25, box.y + box.height / 2);
+  await expect(category(page, 'experiences')).toHaveClass(/\bhovered\b/);
+  // Out through the right edge, 32 px beyond the panel: no move outside the
+  // panel reaches the page.
+  await page.mouse.move(VIEWPORT.width + 20, box.y + box.height / 2);
+  await expect(page.locator('.ip-category.hovered')).toHaveCount(0);
+});
+
 for (const orbital of ORBITALS) {
   test(`clicking ${orbital.id} selects it and flattens its ring`, async ({ page }) => {
     await category(page, orbital.id).locator('.ip-category-name').click();

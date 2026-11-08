@@ -72,6 +72,8 @@ export class InfoPanel {
     for (const section of sections) this.categories.push(this.buildCategory(section, signal));
 
     document.addEventListener('pointermove', this.onDocumentPointerMove, { passive: true, signal });
+    // pointerleave does not bubble; the root element gets its own.
+    document.documentElement.addEventListener('pointerleave', this.onPointerLeavePage, { signal });
     document.addEventListener('click', this.onDocumentClick, { signal });
     document.addEventListener('keydown', this.onKeyDown, { signal });
     window.addEventListener('resize', this.invalidateLayout, { signal });
@@ -271,6 +273,15 @@ export class InfoPanel {
     }
     const nearest = findNearestName(names, mobile ? x : y, mobile, selectedRingId);
     if (nearest !== null) this.store.hoverRing(nearest, 'panel');
+  };
+
+  /**
+   * The pointer left the page: a mouse out of the window, a pen out of
+   * range, or a touch that lifted or that the browser took. No move outside
+   * the panel follows to end the panel's hover, so it ends here.
+   */
+  private readonly onPointerLeavePage = (): void => {
+    this.store.hoverRing(null, 'panel');
   };
 
   private readonly onDocumentClick = (e: MouseEvent): void => {
