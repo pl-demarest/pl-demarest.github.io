@@ -84,6 +84,25 @@ test('dragging a ring changes the rendered scene and does not select it', async 
   await expect(page.locator('.ip-category.selected')).toHaveCount(0);
 });
 
+test('a press whose release never reaches the page does not keep dragging', async ({ page }) => {
+  const start = model.ringPoint('projects', { maxX: 800 });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: start.x, y: start.y });
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: start.x, y: start.y, button: 'left', buttons: 1, clickCount: 1 });
+  await expect(page.locator('#scene')).toHaveCSS('cursor', 'grabbing');
+
+  // The button is let go outside the browser; later moves report no buttons.
+  for (let i = 1; i <= 3; i++) {
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: start.x + i * 30, y: start.y, button: 'none', buttons: 0 });
+  }
+  await expect(page.locator('#scene')).not.toHaveCSS('cursor', 'grabbing');
+
+  // Hover picking works again (the clock is paused, so the scene has not moved).
+  const node = model.nodePoint('papers');
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: node.x, y: node.y, button: 'none', buttons: 0 });
+  await expect(page.locator('.ip-node.scene-hovered')).toHaveCount(1);
+});
+
 test('a still scene renders identically until time advances', async ({ page }) => {
   const canvas = page.locator('#scene');
   const a = await canvas.screenshot();

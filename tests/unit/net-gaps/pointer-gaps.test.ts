@@ -52,9 +52,9 @@ function ringPoint(rig: Rig, ring: OrbitalRing): { x: number; y: number } {
   throw new Error(`no clear point on ring ${ring.config.id}`);
 }
 
-function fire(target: EventTarget, type: string, p: { x: number; y: number }): void {
+function fire(target: EventTarget, type: string, p: { x: number; y: number }, init: PointerEventInit = {}): void {
   target.dispatchEvent(
-    new PointerEvent(type, { clientX: p.x, clientY: p.y, bubbles: true, pointerId: 1, pointerType: 'mouse', isPrimary: true }),
+    new PointerEvent(type, { clientX: p.x, clientY: p.y, bubbles: true, pointerId: 1, pointerType: 'mouse', isPrimary: true, ...init }),
   );
 }
 
@@ -91,8 +91,8 @@ describe('InteractionManager gaps', () => {
     const z0 = rig.rings.map(r => r.group.rotation.z);
     fire(rig.canvas, 'pointermove', p);
     fire(rig.canvas, 'pointerdown', p);
-    // Pointer moves right 20 px and down 20 px.
-    fire(rig.canvas, 'pointermove', { x: p.x + 20, y: p.y + 20 });
+    // Pointer moves right 20 px and down 20 px with the button held.
+    fire(rig.canvas, 'pointermove', { x: p.x + 20, y: p.y + 20 }, { buttons: 1 });
     for (const r of rig.rings) step(r, 1);
 
     const impulse = 20 * 0.005 * DT_60HZ;

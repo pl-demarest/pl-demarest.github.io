@@ -134,6 +134,8 @@ function fire(
 }
 
 const EMPTY = { x: 4, y: 4 };
+/** The main button held, as in every pointermove of a real drag. */
+const HELD: PointerEventInit = { buttons: 1 };
 const color = (node: OrbitalNode) => (node.mesh.material as THREE.MeshBasicMaterial).color;
 
 describe('InteractionManager', () => {
@@ -307,7 +309,7 @@ describe('InteractionManager', () => {
     fire(rig.canvas, 'pointermove', p);
     fire(rig.canvas, 'pointerdown', p, {}, 1000);
     rig.onHover.mockClear();
-    fire(rig.canvas, 'pointermove', { x: p.x + 20, y: p.y }, {}, 1016);
+    fire(rig.canvas, 'pointermove', { x: p.x + 20, y: p.y }, HELD, 1016);
 
     // Dragged ring: dx * 0.008 over the 16 ms since the press.
     expect(outer.angularVelocity).toBeCloseTo((20 * 0.008) / 0.016, 12);
@@ -346,7 +348,7 @@ describe('InteractionManager', () => {
       const coupledBefore = middle.angularVelocity;
       fire(r.canvas, 'pointerdown', p, {}, 1000);
       for (let i = 1; i <= events; i++) {
-        fire(r.canvas, 'pointermove', { x: p.x + i * stepPx, y: p.y }, {}, 1000 + i * stepMs);
+        fire(r.canvas, 'pointermove', { x: p.x + i * stepPx, y: p.y }, HELD, 1000 + i * stepMs);
       }
       return { spin: outer.angularVelocity, coupled: middle.angularVelocity - coupledBefore };
     });
@@ -363,12 +365,33 @@ describe('InteractionManager', () => {
     fire(rig.canvas, 'pointerdown', p, {}, 1000);
     fire(rig.canvas, 'pointerleave', { x: p.x + 30, y: p.y });
     // The move after leaving still drags: 60 px from the press in 16 ms.
-    fire(rig.canvas, 'pointermove', { x: p.x + 60, y: p.y }, {}, 1016);
+    fire(rig.canvas, 'pointermove', { x: p.x + 60, y: p.y }, HELD, 1016);
     expect(ring.angularVelocity).toBeCloseTo((60 * 0.008) / 0.016, 12);
     fire(rig.canvas, 'pointerup', { x: p.x + 60, y: p.y });
     const v = ring.angularVelocity;
     fire(rig.canvas, 'pointermove', { x: p.x + 90, y: p.y });
     expect(ring.angularVelocity).toBe(v);
+  });
+
+  it('a move with no button down ends a press whose release never reached the page', () => {
+    // A button let go after a window or app switch sends no pointerup; every
+    // later move arrives with buttons === 0.
+    const ring = rig.rings[2]!;
+    const p = ringPoint(rig, ring);
+    const before = ring.angularVelocity;
+    fire(rig.canvas, 'pointerdown', p, { buttons: 1 }, 1000);
+    expect(rig.canvas.style.cursor).toBe('grabbing');
+
+    fire(rig.canvas, 'pointermove', { x: p.x + 60, y: p.y }, { buttons: 0 }, 1016);
+    expect(ring.angularVelocity).toBe(before);
+    expect(rig.canvas.style.cursor).not.toBe('grabbing');
+    expect(rig.canvas.hasPointerCapture(1)).toBe(false);
+
+    // Hover picking works again, and a late release is not a click.
+    fire(rig.canvas, 'pointermove', p, { buttons: 0 });
+    expect(rig.onHover).toHaveBeenLastCalledWith({ ring, node: null });
+    fire(rig.canvas, 'pointerup', p);
+    expect(rig.onRingClick).not.toHaveBeenCalled();
   });
 
   it('pointercancel ends a drag without a click', () => {

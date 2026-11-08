@@ -150,6 +150,9 @@ export class InteractionManager {
   };
 
   private readonly onPointerMove = (e: PointerEvent): void => {
+    // No button is down any more: the release happened where the page could
+    // not see it (after a window or app switch), so the press is over.
+    if (this.press?.pointerId === e.pointerId && e.buttons === 0) this.endPress();
     if (this.drag && this.press?.pointerId === e.pointerId) {
       const dx = e.clientX - this.drag.lastX;
       const dy = e.clientY - this.drag.lastY;
