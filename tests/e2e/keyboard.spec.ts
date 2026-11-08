@@ -281,8 +281,11 @@ test('a node focused by a click hands focus to its category name when the catego
 
 test('focus that follows a mouse click does not act as a hover', async ({ page }) => {
   await name(page, 'publications').click();
-  // Over the selected category's first node, the nearest other name
-  // (experiences, just below) is hovered.
+  // The pointer hovers Experiences from beside its name, then moves onto
+  // a node of the selected Publications: Experiences stays hovered.
+  const box = (await name(page, 'experiences').boundingBox())!;
+  await page.mouse.move(box.x - 25, box.y + box.height / 2);
+  await expect(category(page, 'experiences')).toHaveClass(/\bhovered\b/);
   await node(page, 'papers').hover();
   await expect(category(page, 'experiences')).toHaveClass(/\bhovered\b/);
   // Clicking the node focuses it; that focus must not take the hover away.

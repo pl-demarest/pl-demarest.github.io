@@ -85,6 +85,29 @@ for (const orbital of ORBITALS) {
   });
 }
 
+test('a click on the selected name deselects it after the pointer comes to rest there', async ({ page }) => {
+  const settled = () => page.waitForFunction(() => document.getAnimations().length === 0);
+  for (const { id } of ORBITALS) {
+    const name = category(page, id).locator('.ip-category-name');
+    await name.click();
+    await expect(category(page, id)).toHaveClass(/\bselected\b/);
+    await page.mouse.move(EMPTY.x, EMPTY.y);
+    await settled();
+    // Arrive from the scene side and rest on the name until the panel's
+    // transitions end. A category expanded on the way would grow the
+    // centred panel and move the name from under the pointer.
+    const box = (await name.boundingBox())!;
+    const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await page.mouse.move(at.x - 150, at.y);
+    await page.mouse.move(at.x, at.y, { steps: 5 });
+    await settled();
+    await expect(page.locator('.ip-category.hovered'), id).toHaveCount(0);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(page.locator('.ip-category.selected'), id).toHaveCount(0);
+  }
+});
+
 test('clicking outside the panel deselects', async ({ page }) => {
   await category(page, 'projects').locator('.ip-category-name').click();
   await expect(category(page, 'projects')).toHaveClass(/\bselected\b/);

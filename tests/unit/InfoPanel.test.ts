@@ -283,6 +283,29 @@ describe('InfoPanel', () => {
     expect(hovered(ctx.root)).toEqual([]);
   });
 
+  it('with a section selected, a pointer on its name or its nodes, or nearest its name, expands no other', () => {
+    // Desktop: Publications selected, its three nodes open below its name
+    // (category box 296..360), then the two other names.
+    vi.spyOn(ctx.root, 'getBoundingClientRect').mockReturnValue(rect(900, 296, 100, 124));
+    const names = [rect(940, 300, 60, 20), rect(940, 364, 60, 20), rect(940, 394, 60, 20)];
+    ORBITALS.forEach((o, i) => vi.spyOn(nameButton(ctx.root, o.id), 'getBoundingClientRect').mockReturnValue(names[i]!));
+    vi.spyOn(category(ctx.root, 'publications'), 'getBoundingClientRect').mockReturnValue(rect(900, 296, 100, 64));
+    ctx.store.toggleSelection('publications');
+
+    const probes: Array<[number, number, string[]]> = [
+      [970, 310, []], // on the selected name, where a click deselects it
+      [970, 345, []], // on its last node, nearer the experiences name than its own
+      [870, 310, []], // left of the panel, level with the selected name
+      [500, 310, []], // outside the panel zone
+      [870, 372, ['experiences']], // left of the panel, level with experiences
+    ];
+    for (const [x, y, expected] of probes) {
+      move(500, 100);
+      move(x, y);
+      expect(hovered(ctx.root), `(${x}, ${y})`).toEqual(expected);
+    }
+  });
+
   it('ignores the moves of a pointer the scene holds captured, as in a drag across the panel', () => {
     vi.spyOn(ctx.root, 'getBoundingClientRect').mockReturnValue(rect(900, 300, 100, 90));
     ORBITALS.forEach((o, i) => {

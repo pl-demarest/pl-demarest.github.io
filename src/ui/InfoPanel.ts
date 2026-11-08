@@ -34,6 +34,11 @@ interface Layout {
   readonly panel: DOMRect;
   /** Category name rects by section id, in panel order. */
   readonly names: ReadonlyMap<string, DOMRect>;
+  /**
+   * Each category's own box (its name, and on desktop its node list) and
+   * its node list's box, which on mobile opens above the bar, by section id.
+   */
+  readonly boxes: ReadonlyMap<string, { readonly category: DOMRect; readonly list: DOMRect }>;
 }
 
 /**
@@ -236,8 +241,12 @@ export class InfoPanel {
   private measure(): Layout {
     if (this.layout && this.runningTransitions === 0) return this.layout;
     const names = new Map<string, DOMRect>();
-    for (const category of this.categories) names.set(category.id, category.name.getBoundingClientRect());
-    this.layout = { panel: this.root.getBoundingClientRect(), names };
+    const boxes = new Map<string, { category: DOMRect; list: DOMRect }>();
+    for (const category of this.categories) {
+      names.set(category.id, category.name.getBoundingClientRect());
+      boxes.set(category.id, { category: category.root.getBoundingClientRect(), list: category.list.getBoundingClientRect() });
+    }
+    this.layout = { panel: this.root.getBoundingClientRect(), names, boxes };
     return this.layout;
   }
 
@@ -259,7 +268,7 @@ export class InfoPanel {
     // the scene wherever the pointer is and reach the document only by
     // bubbling. They belong to the drag, not to the panel's hover.
     if (this.sceneElement?.hasPointerCapture(e.pointerId)) return;
-    const { panel, names } = this.measure();
+    const { panel, names, boxes } = this.measure();
     const x = e.clientX;
     const y = e.clientY;
     const mobile = isMobileWidth(window.innerWidth);
@@ -283,8 +292,13 @@ export class InfoPanel {
       if (hit !== null && hit !== hoveredRing.id) this.store.hoverRing(hit, 'panel');
       return;
     }
-    const nearest = findNearestName(names, mobile ? x : y, mobile, selectedRingId);
-    if (nearest !== null) this.store.hoverRing(nearest, 'panel');
+    // With nothing hovered, a pointer on the selected category, or nearest
+    // its name, hovers nothing: another category expanding would grow the
+    // panel and move the selected name or node from under the pointer.
+    const selected = selectedRingId === null ? undefined : boxes.get(selectedRingId);
+    if (selected && (contains(selected.category, x, y) || contains(selected.list, x, y))) return;
+    const nearest = findNearestName(names, mobile ? x : y, mobile);
+    if (nearest !== null && nearest !== selectedRingId) this.store.hoverRing(nearest, 'panel');
   };
 
   /**
@@ -355,17 +369,15 @@ function findNameHit(names: ReadonlyMap<string, DOMRect>, x: number, y: number, 
   return null;
 }
 
-/** The unselected section whose name centre is nearest: along x on mobile, y on desktop. */
-function findNearestName(
-  names: ReadonlyMap<string, DOMRect>,
-  pointer: number,
-  mobile: boolean,
-  selectedId: string | null,
-): string | null {
+function contains(r: DOMRect, x: number, y: number): boolean {
+  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+}
+
+/** The section whose name centre is nearest: along x on mobile, y on desktop. */
+function findNearestName(names: ReadonlyMap<string, DOMRect>, pointer: number, mobile: boolean): string | null {
   let best: string | null = null;
   let bestDistance = Infinity;
   for (const [id, r] of names) {
-    if (id === selectedId) continue;
     const centre = mobile ? r.left + r.width / 2 : r.top + r.height / 2;
     const distance = Math.abs(pointer - centre);
     if (distance < bestDistance) {
