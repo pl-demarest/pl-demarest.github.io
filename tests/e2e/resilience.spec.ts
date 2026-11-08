@@ -1,4 +1,5 @@
 import { advance, expect, openScene, test } from './support/fixtures';
+import { readScene } from './support/sceneProbe';
 
 // The page without WebGL, and with reduced motion.
 
@@ -76,12 +77,13 @@ test.describe('reduced motion', () => {
     // would change the scene by itself.
     await page.mouse.move(60, 740);
     await expect(page.locator('.ip-node.scene-hovered')).toHaveCount(0);
-    // Only the scene is compared: the panel and the header are masked.
-    const shot = { animations: 'disabled' as const, mask: [page.locator('#info-panel'), page.locator('#header')] };
+    // One frame after the selection the ring lies exactly flat...
     await advance(page, 16);
-    const first = await page.screenshot(shot);
+    const first = await readScene(page);
+    expect(first.rings['projects']).toEqual({ rotationX: Math.PI / 2, rotationZ: 0 });
+    // ...and over the next 62 frames no ring turns or tilts and no node moves or grows.
     await advance(page, 992);
-    expect((await page.screenshot(shot)).equals(first)).toBe(true);
+    expect(await readScene(page)).toEqual(first);
   });
 
   test('turning it on pauses a moving scene', async ({ page }) => {

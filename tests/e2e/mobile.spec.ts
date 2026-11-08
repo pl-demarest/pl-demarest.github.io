@@ -1,6 +1,7 @@
 import { ORBITALS } from '../../src/scene/config';
 import { FRAME_MS, advance, expect, openScene, test } from './support/fixtures';
 import { SceneModel } from './support/geometry';
+import { angleBetween, readScene, ringAngle } from './support/sceneProbe';
 
 const VIEWPORT = { width: 375, height: 812 };
 
@@ -98,13 +99,23 @@ test('a one-finger drag on the scene still reaches the pointer layer', async ({ 
       scene.addEventListener(type, e => events.push(`${e.type} ${(e as PointerEvent).pointerType}`));
     }
   });
-  // Clear of the header and the bottom bar, with room for the 90 px drag.
-  const start = new SceneModel(VIEWPORT, 2000).ringPoint('projects', { margin: 90, maxX: VIEWPORT.width - 130 });
+  // Clear of the header and the bottom bar, with room for the 90 px drag;
+  // whole px, so each move is exactly 15 px.
+  const point = new SceneModel(VIEWPORT, 2000).ringPoint('projects', { margin: 90, maxX: VIEWPORT.width - 130 });
+  const start = { x: Math.round(point.x), y: Math.round(point.y) };
+  // Chrome hands touch events to the page with its next rendering frame,
+  // after the CDP call has returned. Each one is awaited before the fake
+  // clock runs another scene frame, so moves and frames alternate as drag()
+  // makes mouse moves and frames alternate.
+  const received = (count: number) =>
+    expect.poll(() => page.evaluate(() => (window as unknown as { events: string[] }).events.length)).toBe(count);
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: start.x, y: start.y }] });
+  await received(1);
   for (let i = 1; i <= 6; i++) {
     await advance(page, FRAME_MS);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: start.x + i * 15, y: start.y }] });
+    await received(1 + i);
   }
   // The pointer layer holds the drag (InteractionManager shows 'grabbing' only then).
   await expect(canvas).toHaveCSS('cursor', 'grabbing');
@@ -115,4 +126,15 @@ test('a one-finger drag on the scene still reaches the pointer layer', async ({ 
   expect(events).toEqual(['pointerdown touch', ...Array<string>(6).fill('pointermove touch'), 'pointerup touch']);
   // A drag is not a tap: nothing is selected.
   await expect(page.locator('.ip-category.selected')).toHaveCount(0);
+
+  // The drag spun the ring as the scene model predicts: a frame, then a
+  // move 15 px right 1/60 s after the event before it, six times.
+  const expected = new SceneModel(VIEWPORT, 2000);
+  for (let i = 0; i < 6; i++) {
+    expected.step(1);
+    expected.dragMove('projects', 15, 0, 1 / 60);
+  }
+  const scene = await readScene(page);
+  expect(angleBetween(ringAngle(scene, 'projects'), expected.ringAngle('projects'))).toBeCloseTo(0, 6);
+  expect(angleBetween(expected.ringAngle('projects'), new SceneModel(VIEWPORT, 2000 + 6 * FRAME_MS).ringAngle('projects'))).toBeGreaterThan(0.5);
 });

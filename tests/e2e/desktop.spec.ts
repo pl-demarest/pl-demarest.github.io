@@ -1,7 +1,8 @@
 import type { Page } from '@playwright/test';
 import { ORBITALS } from '../../src/scene/config';
 import { FRAME_MS, SCENE_FRAME_MS, advance, drag, expect, openScene, test } from './support/fixtures';
-import { SceneModel } from './support/geometry';
+import { SceneModel, type ScreenPoint } from './support/geometry';
+import { angleBetween, readScene, ringAngle } from './support/sceneProbe';
 
 const VIEWPORT = { width: 1280, height: 800 };
 const SETTLE_MS = 2000;
@@ -61,6 +62,9 @@ for (const orbital of ORBITALS) {
     await page.mouse.move(EMPTY.x, EMPTY.y);
     // The flat-view ease settles in under 40 frames (0.67 s at 60 Hz); run 94 frames.
     await advance(page, 1504);
+    // Face-on: the ease snaps to the exact flat pose once within 0.001 rad.
+    const scene = await readScene(page);
+    expect(scene.rings[orbital.id]).toEqual({ rotationX: Math.PI / 2, rotationZ: 0 });
     await expect(page).toHaveScreenshot(`desktop-selected-${orbital.id}.png`);
   });
 }
@@ -72,17 +76,34 @@ test('clicking outside the panel deselects', async ({ page }) => {
   await expect(page.locator('.ip-category.selected')).toHaveCount(0);
 });
 
-test('dragging a ring changes the rendered scene and does not select it', async ({ page }) => {
-  // Outer ring, left of the panel so the drag never crosses it.
-  const start = model.ringPoint('projects', { maxX: 900 });
-  const canvas = page.locator('#scene');
-  const before = await canvas.screenshot();
-
-  await drag(page, start, { x: start.x + 120, y: start.y + 40 }, 6);
+test('dragging a ring spins and tilts the rings as the scene model predicts, and does not select it', async ({ page }) => {
+  // Outer ring, left of the panel so the drag never crosses it. Whole px, so
+  // each of the six moves is exactly 20 px right and 6 px down.
+  const point = model.ringPoint('projects', { maxX: 900 });
+  const start = { x: Math.round(point.x), y: Math.round(point.y) };
+  await drag(page, start, { x: start.x + 120, y: start.y + 36 }, 6);
   await advance(page, 496);
 
-  const after = await canvas.screenshot();
-  expect(after.equals(before)).toBe(false);
+  // The same drag in Node: drag() runs one frame before each move, and each
+  // move comes 1/60 s after the event before it; 31 frames follow.
+  const expected = new SceneModel(VIEWPORT, SETTLE_MS);
+  for (let i = 0; i < 6; i++) {
+    expected.step(1);
+    expected.dragMove('projects', 20, 6, 1 / 60);
+  }
+  expected.step(31);
+  // The drag matters: without it the projects nodes would be elsewhere.
+  const undisturbed = new SceneModel(VIEWPORT, SETTLE_MS + 6 * FRAME_MS + 496);
+  const [dragged, still] = [expected, undisturbed].map(m => m.nodeScreen('engagements')) as [ScreenPoint, ScreenPoint];
+  expect(Math.hypot(dragged.x - still.x, dragged.y - still.y)).toBeGreaterThan(50);
+
+  const scene = await readScene(page);
+  for (const ring of expected.rings) {
+    const id = ring.config.id;
+    expect(scene.rings[id]!.rotationX, `${id} tilt x`).toBeCloseTo(ring.group.rotation.x, 6);
+    expect(scene.rings[id]!.rotationZ, `${id} tilt z`).toBeCloseTo(ring.group.rotation.z, 6);
+    expect(angleBetween(ringAngle(scene, id), expected.ringAngle(id)), `${id} orbit angle`).toBeCloseTo(0, 6);
+  }
   await expect(page.locator('.ip-category.selected')).toHaveCount(0);
 });
 
@@ -180,12 +201,24 @@ test('a drag sends its pointer moves one 60 Hz frame apart, as a real pointer do
 test('a still scene renders identically until time advances', async ({ page }) => {
   const canvas = page.locator('#scene');
   const a = await canvas.screenshot();
+  const still = await readScene(page);
   await page.waitForTimeout(300); // real time passes; the fake clock does not
   const b = await canvas.screenshot();
   expect(b.equals(a)).toBe(true);
+  expect(await readScene(page)).toEqual(still);
   await advance(page, 992);
   const c = await canvas.screenshot();
   expect(c.equals(a)).toBe(false);
+
+  // 62 more frames of 1/60 s each: every node is where the scene model,
+  // stepped the same way in Node, puts it.
+  const scene = await readScene(page);
+  const later = new SceneModel(VIEWPORT, SETTLE_MS + 992);
+  for (const node of ORBITALS.flatMap(o => o.nodes)) {
+    const expected = later.nodeScreen(node.id);
+    expect(scene.nodes[node.id]!.screen.x, `${node.id} x`).toBeCloseTo(expected.x, 2);
+    expect(scene.nodes[node.id]!.screen.y, `${node.id} y`).toBeCloseTo(expected.y, 2);
+  }
 });
 
 test('hovering a scene node highlights its panel entry', async ({ page }) => {

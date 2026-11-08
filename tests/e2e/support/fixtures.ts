@@ -1,4 +1,5 @@
 import { test as base, expect, type Page } from '@playwright/test';
+import { installSceneProbe } from './sceneProbe';
 
 /** Fixed wall-clock start for every page; the clock is paused 1 s later. */
 const CLOCK_START = new Date('2026-01-01T00:00:00Z');
@@ -30,6 +31,8 @@ export const SCENE_FRAME_MS = 1000 / 60;
  *   another mulberry32(SEED), so three.js UUIDs are identical on every
  *   load too, and adding scene objects (each draws a UUID) does not move
  *   the particles.
+ * - The scene probe (sceneProbe.ts) is installed, so a test can read ring
+ *   angles and node positions with readScene().
  *
  * After loading, the scene runs for `settleMs` of fake time.
  */
@@ -57,6 +60,7 @@ export async function openScene(page: Page, settleMs = 2000): Promise<void> {
     },
     { seed: SEED, frameMs: FRAME_MS, sceneFrameMs: SCENE_FRAME_MS },
   );
+  await installSceneProbe(page);
   await page.goto('/');
   await expect(page.locator('#info-panel .ip-category')).toHaveCount(3);
   await advance(page, settleMs);
