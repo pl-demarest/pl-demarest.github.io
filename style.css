@@ -156,12 +156,17 @@ html, body {
   overflow: hidden;
   transition: max-height 0.35s ease, opacity 0.3s ease;
   opacity: 0;
+  /* A collapsed list lets the pointer through. On mobile it keeps its
+     padding, a transparent box above the bar that would otherwise take
+     taps meant for the scene or for the open list below it. */
+  pointer-events: none;
 }
 
 .ip-category.hovered .ip-nodes,
 .ip-category.selected .ip-nodes {
   max-height: min(70vh, 40rem);
   opacity: 1;
+  pointer-events: auto;
 }
 
 .ip-node {

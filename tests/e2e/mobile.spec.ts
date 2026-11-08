@@ -52,6 +52,43 @@ test('tapping a category selects it and opens its nodes above the bar', async ({
   await expect(page.locator('.ip-category.selected')).toHaveCount(0);
 });
 
+test('collapsed node lists above the bar let taps through', async ({ page }) => {
+  // A collapsed list keeps its mobile padding: a transparent box 19 px tall
+  // and as wide as the bar, just above it, with the top of its first node
+  // button showing in the bottom padding. The three boxes sit on top of one
+  // another, Projects' last.
+  const panelTop = (await page.locator('#info-panel').boundingBox())!.y;
+  const hitIds = (points: Array<{ x: number; y: number }>) =>
+    page.evaluate(
+      list =>
+        list.map(p => {
+          const el = document.elementFromPoint(p.x, p.y);
+          return el instanceof HTMLElement ? el.dataset['nodeId'] ?? el.id : '';
+        }),
+      points,
+    );
+  const strip = [20, 187, 355].flatMap(x => [2, 8, 16].map(dy => ({ x, y: panelTop - dy })));
+  expect(await hitIds(strip)).toEqual(Array<string>(strip.length).fill('scene'));
+
+  // A tap there reaches the scene: no hidden node button is clicked or focused.
+  await page.touchscreen.tap(187, panelTop - 4);
+  await expect(page.locator('.ip-node:focus')).toHaveCount(0);
+
+  // With Publications open, the boxes of the collapsed lists cover the lower
+  // part of its last node and the padding below it.
+  const publications = page.locator('.ip-category[data-ring-id="publications"]');
+  await publications.locator('.ip-category-name').tap();
+  await expect(publications).toHaveClass(/\bselected\b/);
+  await page.waitForFunction(() => document.getAnimations().length === 0);
+  const last = page.locator('#ip-nodes-publications .ip-node').last();
+  const box = (await last.boundingBox())!;
+  const x = box.x + box.width / 2;
+  const lowerPart = { x, y: box.y + box.height * 0.8 };
+  expect(await hitIds([lowerPart, { x, y: box.y + box.height + 4 }])).toEqual(['presentations', 'ip-nodes-publications']);
+  await page.touchscreen.tap(lowerPart.x, lowerPart.y);
+  await expect(last).toBeFocused();
+});
+
 test('tapping a ring in the scene selects it', async ({ page }) => {
   // No hover precedes a tap, so the click must come from the ring under the press.
   // The margin keeps the point clear of the header and the bottom bar.
