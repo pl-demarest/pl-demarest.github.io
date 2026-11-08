@@ -104,7 +104,6 @@ The browser suite holds every page still (`tests/e2e/support/fixtures.ts`): the 
 
 Adding, removing or reordering sections or nodes can need these updates:
 
-- `tests/e2e/support/fixtures.ts`: `openScene` waits for exactly 3 panel categories.
 - `tests/unit/config.test.ts`: 'pins the current section order and labels'.
 - `tests/e2e/keyboard.spec.ts`: the accessibility snapshots list the three section buttons, with `/children: equal`.
 - `tests/unit/content.test.ts`: every node's action is `none`, `CLOUDS` has no asset, and the Code node's link.

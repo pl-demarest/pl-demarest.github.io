@@ -1,4 +1,5 @@
 import { test as base, expect, type Page } from '@playwright/test';
+import { SECTIONS } from '../../../src/content/site';
 import { installSceneProbe } from './sceneProbe';
 
 /** Fixed wall-clock start for every page; the clock is paused 1 s later. */
@@ -62,7 +63,8 @@ export async function openScene(page: Page, settleMs = 2000): Promise<void> {
   );
   await installSceneProbe(page);
   await page.goto('/');
-  await expect(page.locator('#info-panel .ip-category')).toHaveCount(3);
+  // One panel category per section, so a content change needs no edit here.
+  await expect(page.locator('#info-panel .ip-category')).toHaveCount(SECTIONS.length);
   await advance(page, settleMs);
 }
 
