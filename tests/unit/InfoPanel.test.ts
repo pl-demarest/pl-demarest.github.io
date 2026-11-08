@@ -346,6 +346,23 @@ describe('InfoPanel', () => {
       expect(hovered(ctx.root)).toEqual([]);
     });
 
+    it('a category that collapses around a node button focused by a click moves focus to its name', () => {
+      // A mouse click focuses a button without :focus-visible, so its
+      // category has no keyboard hover to keep it open.
+      const matches = Element.prototype.matches;
+      vi.spyOn(Element.prototype, 'matches').mockImplementation(function (this: Element, selector: string) {
+        return selector === ':focus-visible' ? false : matches.call(this, selector);
+      });
+      ctx.store.hoverRing('experiences', 'panel');
+      nodeButton(ctx.root, 'academic').focus();
+      expect(document.activeElement).toBe(nodeButton(ctx.root, 'academic'));
+
+      ctx.store.hoverRing(null, 'panel'); // the pointer leaves the panel
+      expect(hovered(ctx.root)).toEqual([]);
+      expect(document.getElementById('ip-nodes-experiences')!.getAttribute('aria-hidden')).toBe('true');
+      expect(document.activeElement).toBe(nameButton(ctx.root, 'experiences'));
+    });
+
     it('Escape clears the selection and keeps the focused category expanded with focus on its name', () => {
       nameButton(ctx.root, 'publications').focus();
       nameButton(ctx.root, 'publications').click(); // Enter or Space on a button is a click

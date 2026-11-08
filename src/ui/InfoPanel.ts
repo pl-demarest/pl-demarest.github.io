@@ -193,6 +193,7 @@ export class InfoPanel {
   private render(state: AppState): void {
     const hoveredId = state.hoveredRing?.id ?? null;
     const sceneNodeId = state.hoveredNode?.source === 'scene' ? state.hoveredNode.id : null;
+    let collapsedAroundFocus: Category | null = null;
     for (const category of this.categories) {
       const selected = category.id === state.selectedRingId;
       // The selected category is never hovered (see Store.hoverRing).
@@ -200,15 +201,22 @@ export class InfoPanel {
       category.root.classList.toggle('hovered', hovered);
       category.root.classList.toggle('selected', selected);
       const expanded = hovered || selected;
+      const wasExpanded = category.name.getAttribute('aria-expanded') === 'true';
       category.name.setAttribute('aria-expanded', String(expanded));
       // A collapsed list is only squeezed to zero height by CSS: its node
       // buttons leave the tab order and the accessibility tree here.
       if (expanded) category.list.removeAttribute('aria-hidden');
       else category.list.setAttribute('aria-hidden', 'true');
       for (const button of category.nodeButtons) button.tabIndex = expanded ? 0 : -1;
+      if (wasExpanded && !expanded && category.list.contains(document.activeElement)) collapsedAroundFocus = category;
     }
     // A row hovered from the panel shows its own :hover style.
     for (const [id, button] of this.nodeButtons) button.classList.toggle('scene-hovered', id === sceneNodeId);
+    // A category that collapses around a node button focused by a click
+    // (keyboard focus keeps its category open) would leave focus inside a
+    // hidden list: focus moves to the category's name. Last, because the
+    // blur can update the store and render again.
+    collapsedAroundFocus?.name.focus();
   }
 
   private measure(): Layout {

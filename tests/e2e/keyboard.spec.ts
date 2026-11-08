@@ -88,6 +88,23 @@ test('collapsed categories keep their node buttons out of the accessibility tree
   `);
 });
 
+test('a node focused by a click hands focus to its category name when the category collapses', async ({ page }) => {
+  // The pointer hovers Experiences from beside its name, and a click on a
+  // node focuses the node (focus without :focus-visible).
+  const box = (await name(page, 'experiences').boundingBox())!;
+  await page.mouse.move(box.x - 25, box.y + box.height / 2);
+  await expect(category(page, 'experiences')).toHaveClass(/\bhovered\b/);
+  await node(page, 'academic').click();
+  await expect(node(page, 'academic')).toBeFocused();
+
+  // The pointer leaves the panel. The category collapses and its node list
+  // leaves the accessibility tree, so focus moves to the category's name.
+  await page.mouse.move(400, 700);
+  await expect(category(page, 'experiences')).not.toHaveClass(/\bhovered\b/);
+  await expect(page.locator('#ip-nodes-experiences')).toHaveAttribute('aria-hidden', 'true');
+  await expect(name(page, 'experiences')).toBeFocused();
+});
+
 test('focus that follows a mouse click does not act as a hover', async ({ page }) => {
   await name(page, 'publications').click();
   // Over the selected category's first node, the nearest other name
