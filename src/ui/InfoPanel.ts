@@ -25,6 +25,8 @@ interface Category {
   readonly id: string;
   readonly root: HTMLElement;
   readonly name: HTMLButtonElement;
+  /** The node list the name controls (aria-controls). */
+  readonly list: HTMLElement;
   readonly nodeButtons: readonly HTMLButtonElement[];
 }
 
@@ -151,7 +153,7 @@ export class InfoPanel {
     );
 
     this.root.appendChild(root);
-    return { id: section.id, root, name, nodeButtons };
+    return { id: section.id, root, name, list: nodes, nodeButtons };
   }
 
   private buildNodeButton(node: SiteNode, signal: AbortSignal): HTMLButtonElement {
@@ -197,9 +199,13 @@ export class InfoPanel {
       const hovered = !selected && (category.id === hoveredId || category.id === this.keyboardFocusId);
       category.root.classList.toggle('hovered', hovered);
       category.root.classList.toggle('selected', selected);
-      category.name.setAttribute('aria-expanded', String(hovered || selected));
-      // Collapsed node buttons leave the tab order.
-      for (const button of category.nodeButtons) button.tabIndex = hovered || selected ? 0 : -1;
+      const expanded = hovered || selected;
+      category.name.setAttribute('aria-expanded', String(expanded));
+      // A collapsed list is only squeezed to zero height by CSS: its node
+      // buttons leave the tab order and the accessibility tree here.
+      if (expanded) category.list.removeAttribute('aria-hidden');
+      else category.list.setAttribute('aria-hidden', 'true');
+      for (const button of category.nodeButtons) button.tabIndex = expanded ? 0 : -1;
     }
     // A row hovered from the panel shows its own :hover style.
     for (const [id, button] of this.nodeButtons) button.classList.toggle('scene-hovered', id === sceneNodeId);

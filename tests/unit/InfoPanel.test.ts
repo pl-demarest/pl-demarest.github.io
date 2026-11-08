@@ -119,6 +119,17 @@ describe('InfoPanel', () => {
     expect(tabbable()).toEqual(['papers', 'patents', 'presentations', 'academic', 'professional']);
   });
 
+  it('hides the node lists of collapsed categories from assistive technology', () => {
+    const hidden = () =>
+      SECTIONS.filter(s => document.getElementById(`ip-nodes-${s.id}`)!.getAttribute('aria-hidden') === 'true').map(s => s.id);
+    expect(hidden()).toEqual(['publications', 'experiences', 'projects']);
+    ctx.store.hoverRing('experiences', 'scene');
+    expect(hidden()).toEqual(['publications', 'projects']);
+    ctx.store.toggleSelection('projects');
+    expect(hidden()).toEqual(['publications']);
+    expect(document.getElementById('ip-nodes-experiences')!.hasAttribute('aria-hidden')).toBe(false);
+  });
+
   it('clicking a category selects it, flattens its ring and highlights its nodes', () => {
     const ring = ctx.rings[1]!;
     nameButton(ctx.root, ring.config.id).click();

@@ -1,8 +1,9 @@
 import type { Page } from '@playwright/test';
 import { expect, openScene, test } from './support/fixtures';
 
-// Keyboard access to the panel in a real browser: Tab focus expands a
-// category the way hover does, Enter and Space select, Escape clears.
+// Keyboard and screen-reader access to the panel in a real browser: Tab
+// focus expands a category the way hover does, Enter and Space select,
+// Escape clears, and collapsed node lists stay out of the accessibility tree.
 
 const category = (page: Page, id: string) => page.locator(`#info-panel .ip-category[data-ring-id="${id}"]`);
 const name = (page: Page, id: string) => category(page, id).locator('.ip-category-name');
@@ -62,6 +63,29 @@ test('a pointer move does not collapse the category that holds keyboard focus', 
   await expect(node(page, 'papers')).toBeFocused();
   await expect(category(page, 'publications')).toHaveClass(/\bhovered\b/);
   await expect(node(page, 'papers')).toHaveAttribute('tabindex', '0');
+});
+
+test('collapsed categories keep their node buttons out of the accessibility tree', async ({ page }) => {
+  await expect(page.locator('#info-panel')).toMatchAriaSnapshot(`
+    - navigation "Sections":
+      - /children: equal
+      - button "Publications"
+      - button "Experiences"
+      - button "Projects"
+  `);
+  // An expanded category shows its nodes.
+  await page.locator('.header-link').last().focus();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#info-panel')).toMatchAriaSnapshot(`
+    - navigation "Sections":
+      - /children: equal
+      - button "Publications" [expanded]
+      - button "Papers"
+      - button "Patents"
+      - button "Presentations"
+      - button "Experiences"
+      - button "Projects"
+  `);
 });
 
 test('focus that follows a mouse click does not act as a hover', async ({ page }) => {
