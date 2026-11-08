@@ -21,6 +21,7 @@ interface Rig {
   onNode: ReturnType<typeof vi.fn<(n: OrbitalNode | null) => void>>;
   onRingHover: ReturnType<typeof vi.fn<(r: OrbitalRing | null) => void>>;
   onRingClick: ReturnType<typeof vi.fn<(r: OrbitalRing) => void>>;
+  onBackgroundClick: ReturnType<typeof vi.fn<() => void>>;
 }
 
 function buildRig(): Rig {
@@ -46,7 +47,9 @@ function buildRig(): Rig {
   im.setHoverCallback(onNode);
   im.setRingHoverCallback(onRingHover);
   im.setRingClickCallback(onRingClick);
-  return { camera, canvas, rings, im, onNode, onRingHover, onRingClick };
+  const onBackgroundClick = vi.fn<() => void>();
+  im.setBackgroundClickCallback(onBackgroundClick);
+  return { camera, canvas, rings, im, onNode, onRingHover, onRingClick, onBackgroundClick };
 }
 
 function toClient(world: THREE.Vector3, camera: THREE.Camera): { x: number; y: number } {
@@ -149,15 +152,25 @@ describe('InteractionManager', () => {
     fire(rig.canvas, 'pointerup', { x: p.x + 3, y: p.y });
     expect(rig.onRingClick).toHaveBeenCalledTimes(1);
     expect(rig.onRingClick).toHaveBeenLastCalledWith(ring);
+    expect(rig.onBackgroundClick).not.toHaveBeenCalled();
     expect(rig.canvas.style.cursor).toBe('grab');
   });
 
-  it('a press and release on empty space is not a ring click', () => {
+  it('a press and release on empty space is a background click, not a ring click', () => {
     fire(rig.canvas, 'pointermove', EMPTY);
     fire(rig.canvas, 'pointerdown', EMPTY);
     fire(rig.canvas, 'pointerup', EMPTY);
     expect(rig.onRingClick).not.toHaveBeenCalled();
+    expect(rig.onBackgroundClick).toHaveBeenCalledTimes(1);
     expect(rig.canvas.style.cursor).toBe('default');
+  });
+
+  it('a drag across empty space and leaving the canvas are not background clicks', () => {
+    fire(rig.canvas, 'pointerdown', EMPTY);
+    fire(rig.canvas, 'pointerup', { x: EMPTY.x + 20, y: EMPTY.y });
+    fire(rig.canvas, 'pointerdown', EMPTY);
+    fire(rig.canvas, 'pointerleave', EMPTY);
+    expect(rig.onBackgroundClick).not.toHaveBeenCalled();
   });
 
   it('dragging a ring sets its spin from the pointer delta and couples the others', () => {

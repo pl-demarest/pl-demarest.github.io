@@ -18,7 +18,6 @@ export class App {
   readonly store = new Store();
   private readonly sceneManager: SceneManager;
   private readonly teardowns: Array<() => void> = [];
-  private panel: InfoPanel | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     // Object creation order is part of the browser suite's contract: three.js
@@ -39,7 +38,8 @@ export class App {
     const interaction = new InteractionManager(sm.camera, canvas);
     interaction.setRings(rings);
     interaction.setRingHoverCallback(ring => this.store.hoverRing(ring?.config.id ?? null, 'scene'));
-    interaction.setRingClickCallback(ring => this.panel?.selectRingFromScene(ring.config.id));
+    interaction.setRingClickCallback(ring => this.store.toggleSelection(ring.config.id));
+    interaction.setBackgroundClickCallback(() => this.store.clearSelection());
     interaction.setHoverCallback(node => this.store.hoverNode(node?.config.id ?? null, 'scene'));
     this.teardowns.push(bindScene(this.store, rings));
 
@@ -51,8 +51,7 @@ export class App {
     initHeader();
     const panelRoot = document.getElementById('info-panel');
     if (panelRoot) {
-      const panel = new InfoPanel(panelRoot, SECTIONS, this.store);
-      this.panel = panel;
+      const panel = new InfoPanel(panelRoot, SECTIONS, this.store, { sceneElement: canvas });
       this.teardowns.push(() => panel.dispose());
     }
     this.sceneManager = sm;

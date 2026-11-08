@@ -5,6 +5,7 @@ import type { OrbitalNode } from './OrbitalNode';
 export type HoverCallback = (node: OrbitalNode | null) => void;
 export type RingHoverCallback = (ring: OrbitalRing | null) => void;
 export type RingClickCallback = (ring: OrbitalRing) => void;
+export type BackgroundClickCallback = () => void;
 
 const CLICK_THRESHOLD = 5;
 
@@ -26,6 +27,7 @@ export class InteractionManager {
   private onHoverChange: HoverCallback | null = null;
   private onRingHoverChange: RingHoverCallback | null = null;
   private onRingClick: RingClickCallback | null = null;
+  private onBackgroundClick: BackgroundClickCallback | null = null;
 
   constructor(camera: THREE.Camera, canvas: HTMLCanvasElement) {
     this.camera = camera;
@@ -51,6 +53,11 @@ export class InteractionManager {
 
   setRingClickCallback(cb: RingClickCallback): void {
     this.onRingClick = cb;
+  }
+
+  /** Called for a click on the canvas away from every ring and node. */
+  setBackgroundClickCallback(cb: BackgroundClickCallback): void {
+    this.onBackgroundClick = cb;
   }
 
   private updatePointer(e: PointerEvent): void {
@@ -169,6 +176,9 @@ export class InteractionManager {
 
     if (wasClick && this.hoveredRing) {
       this.onRingClick?.(this.hoveredRing);
+    } else if (wasClick && e.type === 'pointerup') {
+      // pointerleave also ends here; leaving the canvas is not a click.
+      this.onBackgroundClick?.();
     }
 
     if (this.activeRing && this.activeRing !== this.hoveredRing) {

@@ -10,6 +10,15 @@ const NAME_INFLATE_RIGHT = 4;
 const NAME_INFLATE_V = 6;
 const MOBILE_BREAKPOINT = 768;
 
+export interface InfoPanelOptions {
+  /**
+   * The scene's element. A click on it belongs to the scene, which reports
+   * ring clicks and background clicks to the store itself, so the panel
+   * does not treat it as a click outside.
+   */
+  sceneElement?: Element | null;
+}
+
 interface Category {
   readonly id: string;
   readonly root: HTMLElement;
@@ -24,26 +33,27 @@ interface Layout {
 
 /**
  * The section list beside the scene. Pointer proximity hovers a category, a
- * click selects it, and a click outside clears the selection. All of it goes
- * through the store, and the panel renders its classes from the store.
+ * click selects it, and a click outside the panel and the scene clears the
+ * selection. All of it goes through the store, and the panel renders its
+ * classes from the store.
  */
 export class InfoPanel {
   private readonly root: HTMLElement;
   private readonly store: Store;
+  private readonly sceneElement: Element | null;
   private readonly categories: Category[] = [];
   private readonly nodeElements = new Map<string, HTMLElement>();
   private readonly listeners = new AbortController();
   private readonly unsubscribe: Unsubscribe;
-  /** Set by selectRingFromScene: the document click that follows is not an outside click. */
-  private suppressNextOutsideClick = false;
   /** Cached rects; null until measured and after anything that moves them. */
   private layout: Layout | null = null;
   /** CSS transitions running inside the panel; rects are read live while any run. */
   private runningTransitions = 0;
 
-  constructor(root: HTMLElement, sections: readonly Section[], store: Store) {
+  constructor(root: HTMLElement, sections: readonly Section[], store: Store, options: InfoPanelOptions = {}) {
     this.root = root;
     this.store = store;
+    this.sceneElement = options.sceneElement ?? null;
 
     const { signal } = this.listeners;
     for (const section of sections) this.categories.push(this.buildCategory(section, signal));
@@ -72,19 +82,7 @@ export class InfoPanel {
     for (const category of this.categories) category.root.remove();
     this.categories.length = 0;
     this.nodeElements.clear();
-    this.suppressNextOutsideClick = false;
     this.layout = null;
-  }
-
-  /**
-   * Toggle a ring's selection for a click in the scene. The browser follows
-   * the canvas pointerup with a document click, which must not clear the new
-   * selection, so the next outside click is ignored.
-   */
-  selectRingFromScene(ringId: string): void {
-    if (!this.categories.some(category => category.id === ringId)) return;
-    this.suppressNextOutsideClick = true;
-    this.store.toggleSelection(ringId);
   }
 
   private buildCategory(section: Section, signal: AbortSignal): Category {
@@ -178,12 +176,10 @@ export class InfoPanel {
   };
 
   private readonly onDocumentClick = (e: MouseEvent): void => {
-    if (this.suppressNextOutsideClick) {
-      this.suppressNextOutsideClick = false;
-      return;
-    }
     const target = e.target;
-    if (target instanceof Node && this.root.contains(target)) return;
+    if (!(target instanceof Node)) return;
+    if (this.root.contains(target)) return;
+    if (this.sceneElement?.contains(target)) return;
     this.store.clearSelection();
   };
 }

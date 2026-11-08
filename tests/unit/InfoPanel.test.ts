@@ -32,7 +32,7 @@ function setup(): Ctx {
   const store = new Store();
   const rings = ORBITALS.map(cfg => new OrbitalRing(cfg));
   bindScene(store, rings);
-  const panel = new InfoPanel(root, SECTIONS, store);
+  const panel = new InfoPanel(root, SECTIONS, store, { sceneElement: canvas });
   return { panel, store, rings, root, canvas };
 }
 
@@ -117,23 +117,27 @@ describe('InfoPanel', () => {
     expect(category(ctx.root, b.config.id).classList.contains('selected')).toBe(true);
   });
 
-  it('a click outside the panel clears the selection', () => {
+  it('a click outside the panel and the scene clears the selection', () => {
     const ring = ctx.rings[2]!;
     nameElement(ctx.root, ring.config.id).click();
-    ctx.canvas.click();
+    document.querySelector<HTMLElement>('.header-link')!.click();
     expect(ctx.root.querySelector('.ip-category.selected')).toBeNull();
     expect(ring.isFlatMode).toBe(false);
   });
 
-  it('selectRingFromScene selects and survives the click that caused it', () => {
+  it('a selection made in the scene survives the click that caused it', () => {
+    // The scene's pointerup toggles the selection; the browser then sends a
+    // click to the canvas. Clicks on the scene's element are the scene's.
     const ring = ctx.rings[0]!;
-    ctx.panel.selectRingFromScene(ring.config.id);
-    expect(ring.isFlatMode).toBe(true);
-    // The canvas pointerup that triggered the selection is followed by a
-    // document click; that one click is ignored.
+    ctx.store.toggleSelection(ring.config.id);
     ctx.canvas.click();
     expect(ring.isFlatMode).toBe(true);
     ctx.canvas.click();
+    expect(ring.isFlatMode).toBe(true);
+    // A click inside the panel keeps it as well; one outside both clears it.
+    nodeElement(ctx.root, 'academic').click();
+    expect(ring.isFlatMode).toBe(true);
+    document.body.click();
     expect(ring.isFlatMode).toBe(false);
   });
 
@@ -228,8 +232,6 @@ describe('InfoPanel', () => {
     expect(ctx.root.children).toHaveLength(0);
     ctx.store.toggleSelection('projects');
     document.body.click();
-    expect(ctx.store.getState().selectedRingId).toBe('projects');
-    ctx.panel.selectRingFromScene('experiences');
     expect(ctx.store.getState().selectedRingId).toBe('projects');
   });
 });
