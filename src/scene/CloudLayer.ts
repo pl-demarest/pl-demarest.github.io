@@ -2,10 +2,12 @@
  * CloudLayer: wireframe clouds drifting across the bottom of the scene.
  *
  * The geometry comes from a binary glTF (GLB) file exported by
- * cloud-designer (decision D3 of the 2026-11 refactor plan): every line-
- * segment primitive in the file (glTF mode LINES, loaded as
- * THREE.LineSegments) is merged into one edge buffer with its transform
- * applied. Each cloud instance draws that buffer as THREE.LineSegments with
+ * cloud-designer (decision D3 of the 2026-11 refactor plan): every line
+ * primitive in the file is merged into one edge buffer with its transform
+ * applied. LINES primitives (THREE.LineSegments) go in as they are; LINE_STRIP
+ * and LINE_LOOP primitives (THREE.Line, THREE.LineLoop), such as the flow
+ * lines in cloud-designer's wireframe exports, are converted to segment
+ * pairs. Each cloud instance draws that buffer as THREE.LineSegments with
  * one shared material, drifts from +spread to -spread along X and bobs on Y.
  *
  * Not wired into the app yet: content's CLOUDS.asset is null until a GLB
@@ -63,8 +65,27 @@ export function cloudDriftX(time: number, index: number, count: number, spread: 
 }
 
 /**
- * Merge every THREE.LineSegments under `root` into one position-only
- * geometry in `root`'s frame. Returns null when `root` holds no segments.
+ * The vertices, in pairs, of the segments `line` draws from `count`
+ * vertices in draw order: LineSegments as they are, a Line strip as each
+ * vertex joined to the next, and a LineLoop closed back to its first vertex.
+ */
+function segmentVertices(line: THREE.Line, count: number): number[] {
+  const order: number[] = [];
+  if ((line as THREE.LineSegments).isLineSegments) {
+    for (let i = 0; i < count; i++) order.push(i);
+    return order;
+  }
+  for (let i = 0; i + 1 < count; i++) order.push(i, i + 1);
+  if ((line as THREE.LineLoop).isLineLoop && count > 1) order.push(count - 1, 0);
+  return order;
+}
+
+/**
+ * Merge every line under `root` into one position-only geometry of
+ * line-segment pairs in `root`'s frame: THREE.LineSegments (glTF mode
+ * LINES) as they are, and THREE.Line and THREE.LineLoop (LINE_STRIP and
+ * LINE_LOOP) converted to the pairs they draw. Returns null when `root`
+ * holds no lines.
  */
 export function mergeLineSegments(root: THREE.Object3D): THREE.BufferGeometry | null {
   root.updateMatrixWorld(true);
@@ -74,19 +95,22 @@ export function mergeLineSegments(root: THREE.Object3D): THREE.BufferGeometry | 
   const m = new THREE.Matrix4();
 
   root.traverse(object => {
-    if (!(object as THREE.LineSegments).isLineSegments) return;
-    const { geometry } = object as THREE.LineSegments;
-    const pairs = geometry.index ? geometry.toNonIndexed() : geometry;
-    const position = pairs.getAttribute('position');
+    if (!(object as THREE.Line).isLine) return;
+    const line = object as THREE.Line;
+    const { geometry } = line;
+    // Vertices in draw order: an index, if any, gives the order.
+    const ordered = geometry.index ? geometry.toNonIndexed() : geometry;
+    const position = ordered.getAttribute('position');
+    const vertices = segmentVertices(line, position.count);
     m.multiplyMatrices(toRoot, object.matrixWorld);
-    const out = new Float32Array(position.count * 3);
-    for (let i = 0; i < position.count; i++) {
-      v.fromBufferAttribute(position, i).applyMatrix4(m);
+    const out = new Float32Array(vertices.length * 3);
+    vertices.forEach((vertex, i) => {
+      v.fromBufferAttribute(position, vertex).applyMatrix4(m);
       out[i * 3] = v.x;
       out[i * 3 + 1] = v.y;
       out[i * 3 + 2] = v.z;
-    }
-    if (pairs !== geometry) pairs.dispose();
+    });
+    if (ordered !== geometry) ordered.dispose();
     parts.push(out);
   });
 
@@ -152,9 +176,8 @@ export class CloudLayer {
 
 /**
  * Load a cloud-designer GLB from `url` and add a CloudLayer built from its
- * line segments to `scene`. GLTFLoader is imported on first use, so pages
- * without clouds do not download it. Rejects when the file has no line
- * segments.
+ * lines to `scene`. GLTFLoader is imported on first use, so pages without
+ * clouds do not download it. Rejects when the file has no lines.
  */
 export async function loadCloudLayer(scene: THREE.Scene, url: string, options: CloudLayerOptions = {}): Promise<CloudLayer> {
   const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');

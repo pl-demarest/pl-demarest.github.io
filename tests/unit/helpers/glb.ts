@@ -1,32 +1,50 @@
+/** One mesh primitive for buildGlb. */
+export interface GlbPrimitive {
+  /** x, y, z per vertex. */
+  positions: number[];
+  /**
+   * glTF primitive mode: 1 LINES (the default; consecutive vertex pairs are
+   * edges), 2 LINE_LOOP, 3 LINE_STRIP, 4 TRIANGLES.
+   */
+  mode?: number;
+  /** Translation of the node that holds the primitive's mesh. */
+  translation?: [number, number, number];
+}
+
 /**
- * Build a minimal binary glTF (GLB): one node holding one mesh with one
- * primitive. The default mode 1 (LINES) is how cloud-designer exports
- * wireframes: `positions` holds x, y, z per vertex, and consecutive vertex
- * pairs are edges.
+ * Build a minimal binary glTF (GLB): one scene with one node and one mesh
+ * per primitive, in order. cloud-designer exports wireframes as mode 1
+ * (LINES) and its flow lines as mode 3 (LINE_STRIP).
  */
-export function buildLinesGlb(
-  positions: number[],
-  { translation = [0, 0, 0], mode = 1 }: { translation?: [number, number, number]; mode?: number } = {},
-): ArrayBuffer {
-  const bin = new Float32Array(positions);
-  const count = positions.length / 3;
-  const min = [0, 1, 2].map(axis => Math.min(...positions.filter((_, i) => i % 3 === axis)));
-  const max = [0, 1, 2].map(axis => Math.max(...positions.filter((_, i) => i % 3 === axis)));
+export function buildGlb(primitives: GlbPrimitive[]): ArrayBuffer {
+  const arrays = primitives.map(p => new Float32Array(p.positions));
+  const offsets = arrays.map((_, i) => arrays.slice(0, i).reduce((n, a) => n + a.byteLength, 0));
+  const binByteLength = arrays.reduce((n, a) => n + a.byteLength, 0);
   const json = {
     asset: { version: '2.0', generator: 'githubLanding test fixture' },
     scene: 0,
-    scenes: [{ nodes: [0] }],
-    nodes: [{ mesh: 0, translation }],
-    meshes: [{ primitives: [{ attributes: { POSITION: 0 }, mode }] }],
-    buffers: [{ byteLength: bin.byteLength }],
-    bufferViews: [{ buffer: 0, byteOffset: 0, byteLength: bin.byteLength, target: 34962 }],
-    accessors: [{ bufferView: 0, componentType: 5126, count, type: 'VEC3', min, max }],
+    scenes: [{ nodes: primitives.map((_, i) => i) }],
+    nodes: primitives.map((p, i) => ({ mesh: i, translation: p.translation ?? [0, 0, 0] })),
+    meshes: primitives.map((p, i) => ({ primitives: [{ attributes: { POSITION: i }, mode: p.mode ?? 1 }] })),
+    buffers: [{ byteLength: binByteLength }],
+    bufferViews: arrays.map((a, i) => ({ buffer: 0, byteOffset: offsets[i], byteLength: a.byteLength, target: 34962 })),
+    accessors: primitives.map((p, i) => {
+      const axis = (k: number) => p.positions.filter((_, j) => j % 3 === k);
+      return {
+        bufferView: i,
+        componentType: 5126,
+        count: p.positions.length / 3,
+        type: 'VEC3',
+        min: [0, 1, 2].map(k => Math.min(...axis(k))),
+        max: [0, 1, 2].map(k => Math.max(...axis(k))),
+      };
+    }),
   };
 
   const pad = (n: number) => (4 - (n % 4)) % 4;
   const jsonBytes = new TextEncoder().encode(JSON.stringify(json));
   const jsonLength = jsonBytes.length + pad(jsonBytes.length);
-  const binLength = bin.byteLength + pad(bin.byteLength);
+  const binLength = binByteLength + pad(binByteLength);
   const total = 12 + 8 + jsonLength + 8 + binLength;
 
   const out = new ArrayBuffer(total);
@@ -42,8 +60,16 @@ export function buildLinesGlb(
   const binStart = 20 + jsonLength;
   view.setUint32(binStart, binLength, true);
   view.setUint32(binStart + 4, 0x004e4942, true); // 'BIN\0'
-  bytes.set(new Uint8Array(bin.buffer), binStart + 8);
+  arrays.forEach((a, i) => bytes.set(new Uint8Array(a.buffer), binStart + 8 + offsets[i]!));
   return out;
+}
+
+/** A GLB holding one primitive (LINES unless `mode` says otherwise). */
+export function buildLinesGlb(
+  positions: number[],
+  { translation = [0, 0, 0], mode = 1 }: { translation?: [number, number, number]; mode?: number } = {},
+): ArrayBuffer {
+  return buildGlb([{ positions, translation, mode }]);
 }
 
 /** A data: URL for a GLB, so tests can load it through the real loader without a server. */

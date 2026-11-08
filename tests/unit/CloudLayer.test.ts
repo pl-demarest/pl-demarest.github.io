@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { CloudLayer, cloudDriftX, loadCloudLayer, mergeLineSegments } from '../../src/scene/CloudLayer';
-import { buildLinesGlb, glbDataUrl } from './helpers/glb';
+import { buildGlb, buildLinesGlb, glbDataUrl } from './helpers/glb';
 
 function segments(positions: number[]): THREE.LineSegments {
   const geometry = new THREE.BufferGeometry();
@@ -12,6 +12,10 @@ function segments(positions: number[]): THREE.LineSegments {
 }
 
 const EDGE = [0, 0, 0, 1, 0, 0];
+/** Four corners of a unit square, in order. */
+const SQUARE = [0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0];
+
+const mergedPositions = (root: THREE.Object3D) => Array.from(mergeLineSegments(root)!.getAttribute('position').array);
 
 describe('cloudDriftX', () => {
   const spread = 14;
@@ -42,7 +46,7 @@ describe('cloudDriftX', () => {
 });
 
 describe('mergeLineSegments', () => {
-  it('merges every LineSegments under the root with its transform, and skips other objects', () => {
+  it('merges every line under the root with its transform, and skips meshes', () => {
     const root = new THREE.Group();
     const a = segments(EDGE);
     a.position.set(0, 2, 0);
@@ -54,8 +58,25 @@ describe('mergeLineSegments', () => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry());
     root.add(a, parent, strip, mesh);
 
-    const merged = mergeLineSegments(root)!;
-    expect(Array.from(merged.getAttribute('position').array)).toEqual([0, 2, 0, 1, 2, 0, 0, 0, 0, 2, 0, 0]);
+    // a, then b scaled by its parent, then the strip's one segment.
+    expect(mergedPositions(root)).toEqual([0, 2, 0, 1, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0]);
+  });
+
+  it('converts a line strip (glTF LINE_STRIP) and a loop (LINE_LOOP) to the segment pairs they draw', () => {
+    const geometry = () => segments(SQUARE).geometry;
+    const root = new THREE.Group();
+    root.add(new THREE.Line(geometry()), new THREE.LineLoop(geometry()));
+    const [p0, p1, p2, p3] = [0, 3, 6, 9].map(i => SQUARE.slice(i, i + 3));
+    const strip = [p0, p1, p1, p2, p2, p3];
+    expect(mergedPositions(root)).toEqual([...strip, ...strip, p3, p0].flat());
+  });
+
+  it('follows the index of an indexed strip', () => {
+    const geometry = segments(SQUARE.slice(0, 9)).geometry;
+    geometry.setIndex([2, 0, 1]);
+    const root = new THREE.Group();
+    root.add(new THREE.Line(geometry));
+    expect(mergedPositions(root)).toEqual([1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0]);
   });
 
   it('expands indexed segments into pairs', () => {
@@ -115,6 +136,23 @@ describe('CloudLayer', () => {
 });
 
 describe('loadCloudLayer', () => {
+  it("loads both LINES and LINE_STRIP primitives, as cloud-designer's wireframe exports hold", async () => {
+    // 'Export Wireframe GLB' and 'Export Both (Full)' write flow lines as
+    // THREE.Line, which the GLB carries as LINE_STRIP.
+    const glb = buildGlb([
+      { positions: EDGE, mode: 1 },
+      { positions: [0, 0, 0, 0, 1, 0, 0, 1, 1], mode: 3, translation: [5, 0, 0] },
+    ]);
+    const scene = new THREE.Scene();
+    const layer = await loadCloudLayer(scene, glbDataUrl(glb), { count: 1 });
+    expect(Array.from(layer.instances[0]!.geometry.getAttribute('position').array)).toEqual([
+      ...EDGE,
+      ...[5, 0, 0, 5, 1, 0],
+      ...[5, 1, 0, 5, 1, 1],
+    ]);
+    layer.dispose();
+  });
+
   it('rejects a GLB that holds no line segments', async () => {
     const triangles = buildLinesGlb([0, 0, 0, 1, 0, 0, 0, 1, 0], { mode: 4 });
     const scene = new THREE.Scene();
