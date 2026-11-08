@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bindScene } from '../../src/app/sceneBinding';
 import { Store } from '../../src/app/store';
 import { SECTIONS } from '../../src/content/site';
+import type { SiteNode } from '../../src/content/types';
 import { OrbitalRing } from '../../src/scene/OrbitalRing';
 import { ORBITALS } from '../../src/scene/config';
 import { InfoPanel } from '../../src/ui/InfoPanel';
@@ -23,6 +24,7 @@ interface Ctx {
   rings: OrbitalRing[];
   root: HTMLElement;
   canvas: HTMLElement;
+  activated: SiteNode[];
 }
 
 function setup(): Ctx {
@@ -32,8 +34,12 @@ function setup(): Ctx {
   const store = new Store();
   const rings = ORBITALS.map(cfg => new OrbitalRing(cfg));
   bindScene(store, rings);
-  const panel = new InfoPanel(root, SECTIONS, store, { sceneElement: canvas });
-  return { panel, store, rings, root, canvas };
+  const activated: SiteNode[] = [];
+  const panel = new InfoPanel(root, SECTIONS, store, {
+    sceneElement: canvas,
+    onNodeActivate: node => activated.push(node),
+  });
+  return { panel, store, rings, root, canvas, activated };
 }
 
 const rect = (left: number, top: number, width: number, height: number) =>
@@ -43,12 +49,12 @@ function category(root: HTMLElement, ringId: string): HTMLElement {
   return root.querySelector<HTMLElement>(`.ip-category[data-ring-id="${ringId}"]`)!;
 }
 
-function nameElement(root: HTMLElement, ringId: string): HTMLElement {
-  return category(root, ringId).querySelector<HTMLElement>('.ip-category-name')!;
+function nameButton(root: HTMLElement, ringId: string): HTMLButtonElement {
+  return category(root, ringId).querySelector<HTMLButtonElement>('.ip-category-name')!;
 }
 
-function nodeElement(root: HTMLElement, nodeId: string): HTMLElement {
-  return root.querySelector<HTMLElement>(`.ip-node[data-node-id="${nodeId}"]`)!;
+function nodeButton(root: HTMLElement, nodeId: string): HTMLButtonElement {
+  return root.querySelector<HTMLButtonElement>(`.ip-node[data-node-id="${nodeId}"]`)!;
 }
 
 function nodeColor(ring: OrbitalRing, i: number): number {
@@ -84,9 +90,38 @@ describe('InfoPanel', () => {
     expect(ctx.root.querySelector('.selected, .hovered')).toBeNull();
   });
 
+  it('makes categories and nodes buttons; aria-expanded follows hover and selection', () => {
+    for (const section of SECTIONS) {
+      const name = nameButton(ctx.root, section.id);
+      expect(name.tagName).toBe('BUTTON');
+      expect(name.type).toBe('button');
+      const list = document.getElementById(name.getAttribute('aria-controls')!)!;
+      expect(list.classList.contains('ip-nodes')).toBe(true);
+      expect(category(ctx.root, section.id).contains(list)).toBe(true);
+      expect(name.getAttribute('aria-expanded')).toBe('false');
+      for (const node of section.nodes) expect(nodeButton(ctx.root, node.id).tagName).toBe('BUTTON');
+    }
+    ctx.store.hoverRing('experiences', 'scene');
+    expect(nameButton(ctx.root, 'experiences').getAttribute('aria-expanded')).toBe('true');
+    ctx.store.toggleSelection('projects');
+    expect(nameButton(ctx.root, 'projects').getAttribute('aria-expanded')).toBe('true');
+    ctx.store.hoverRing(null, 'scene');
+    expect(nameButton(ctx.root, 'experiences').getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('keeps the node buttons of collapsed categories out of the tab order', () => {
+    const tabbable = () =>
+      [...ctx.root.querySelectorAll<HTMLButtonElement>('.ip-node')].filter(b => b.tabIndex >= 0).map(b => b.dataset['nodeId']);
+    expect(tabbable()).toEqual([]);
+    ctx.store.hoverRing('experiences', 'panel');
+    expect(tabbable()).toEqual(['academic', 'professional']);
+    ctx.store.toggleSelection('publications');
+    expect(tabbable()).toEqual(['papers', 'patents', 'presentations', 'academic', 'professional']);
+  });
+
   it('clicking a category selects it, flattens its ring and highlights its nodes', () => {
     const ring = ctx.rings[1]!;
-    nameElement(ctx.root, ring.config.id).click();
+    nameButton(ctx.root, ring.config.id).click();
     expect(category(ctx.root, ring.config.id).classList.contains('selected')).toBe(true);
     expect(ring.isFlatMode).toBe(true);
     expect(ring.angularVelocity).toBe(0);
@@ -99,8 +134,8 @@ describe('InfoPanel', () => {
 
   it('a second click on the same category deselects it', () => {
     const ring = ctx.rings[0]!;
-    nameElement(ctx.root, ring.config.id).click();
-    nameElement(ctx.root, ring.config.id).click();
+    nameButton(ctx.root, ring.config.id).click();
+    nameButton(ctx.root, ring.config.id).click();
     expect(category(ctx.root, ring.config.id).classList.contains('selected')).toBe(false);
     expect(ring.isFlatMode).toBe(false);
     expect(ring.angularVelocity).toBe(ring.config.speed);
@@ -109,8 +144,8 @@ describe('InfoPanel', () => {
 
   it('clicking another category moves the selection', () => {
     const [a, b] = ctx.rings as [OrbitalRing, OrbitalRing];
-    nameElement(ctx.root, a.config.id).click();
-    nameElement(ctx.root, b.config.id).click();
+    nameButton(ctx.root, a.config.id).click();
+    nameButton(ctx.root, b.config.id).click();
     expect(a.isFlatMode).toBe(false);
     expect(b.isFlatMode).toBe(true);
     expect(ctx.root.querySelectorAll('.ip-category.selected')).toHaveLength(1);
@@ -119,7 +154,7 @@ describe('InfoPanel', () => {
 
   it('a click outside the panel and the scene clears the selection', () => {
     const ring = ctx.rings[2]!;
-    nameElement(ctx.root, ring.config.id).click();
+    nameButton(ctx.root, ring.config.id).click();
     document.querySelector<HTMLElement>('.header-link')!.click();
     expect(ctx.root.querySelector('.ip-category.selected')).toBeNull();
     expect(ring.isFlatMode).toBe(false);
@@ -135,7 +170,7 @@ describe('InfoPanel', () => {
     ctx.canvas.click();
     expect(ring.isFlatMode).toBe(true);
     // A click inside the panel keeps it as well; one outside both clears it.
-    nodeElement(ctx.root, 'academic').click();
+    nodeButton(ctx.root, 'academic').click();
     expect(ring.isFlatMode).toBe(true);
     document.body.click();
     expect(ring.isFlatMode).toBe(false);
@@ -151,7 +186,7 @@ describe('InfoPanel', () => {
 
   it('a scene ring hover does not mark the selected category as hovered', () => {
     const ring = ctx.rings[1]!;
-    nameElement(ctx.root, ring.config.id).click();
+    nameButton(ctx.root, ring.config.id).click();
     ctx.store.hoverRing(ring.config.id, 'scene');
     expect(category(ctx.root, ring.config.id).classList.contains('hovered')).toBe(false);
   });
@@ -172,18 +207,25 @@ describe('InfoPanel', () => {
 
   it('pointer enter and leave on a panel node hover the scene node', () => {
     const ring = ctx.rings[0]!;
-    const el = nodeElement(ctx.root, 'papers');
+    const el = nodeButton(ctx.root, 'papers');
     el.dispatchEvent(new PointerEvent('pointerenter'));
     expect(nodeColor(ring, 0)).toBe(HIGHLIGHT);
     el.dispatchEvent(new PointerEvent('pointerleave'));
     expect(nodeColor(ring, 0)).toBe(0x000000);
   });
 
+  it('activating a node button reports its node and leaves the selection alone', () => {
+    nodeButton(ctx.root, 'code').click();
+    expect(ctx.activated.map(n => n.id)).toEqual(['code']);
+    expect(ctx.activated[0]!.action).toEqual({ kind: 'none' });
+    expect(ctx.store.getState().selectedRingId).toBeNull();
+  });
+
   it('document pointermove expands the nearest category inside the inflated panel zone', () => {
     // Desktop: names stacked 30 px apart on the right.
     vi.spyOn(ctx.root, 'getBoundingClientRect').mockReturnValue(rect(900, 300, 100, 90));
     ORBITALS.forEach((o, i) => {
-      vi.spyOn(nameElement(ctx.root, o.id), 'getBoundingClientRect').mockReturnValue(rect(940, 300 + i * 30, 60, 20));
+      vi.spyOn(nameButton(ctx.root, o.id), 'getBoundingClientRect').mockReturnValue(rect(940, 300 + i * 30, 60, 20));
     });
 
     // Inside the panel's 60 px left inflation; nothing hovered yet, so the
@@ -206,7 +248,7 @@ describe('InfoPanel', () => {
   it('reads the rects once, and again only after a resize, a scroll or a change of expansion', () => {
     const panelRect = vi.spyOn(ctx.root, 'getBoundingClientRect').mockReturnValue(rect(900, 300, 100, 90));
     const nameRects = ORBITALS.map((o, i) =>
-      vi.spyOn(nameElement(ctx.root, o.id), 'getBoundingClientRect').mockReturnValue(rect(940, 300 + i * 30, 60, 20)),
+      vi.spyOn(nameButton(ctx.root, o.id), 'getBoundingClientRect').mockReturnValue(rect(940, 300 + i * 30, 60, 20)),
     );
     const reads = () => [panelRect, ...nameRects].map(spy => spy.mock.calls.length);
 
@@ -227,11 +269,62 @@ describe('InfoPanel', () => {
     expect(reads()).toEqual([4, 4, 4, 4]);
   });
 
+  describe('keyboard', () => {
+    it('focus on a category expands it like hover, and focus leaving the category collapses it', () => {
+      nameButton(ctx.root, 'experiences').focus();
+      expect(hovered(ctx.root)).toEqual(['experiences']);
+      // Moving into the category's own nodes keeps it expanded.
+      nodeButton(ctx.root, 'academic').focus();
+      expect(hovered(ctx.root)).toEqual(['experiences']);
+      nameButton(ctx.root, 'projects').focus();
+      expect(hovered(ctx.root)).toEqual(['projects']);
+      document.querySelector<HTMLElement>('.header-link')!.focus();
+      expect(hovered(ctx.root)).toEqual([]);
+    });
+
+    it('focus on a node hovers its scene node until the node loses focus', () => {
+      nodeButton(ctx.root, 'patents').focus();
+      expect(nodeColor(ctx.rings[0]!, 1)).toBe(HIGHLIGHT);
+      nodeButton(ctx.root, 'patents').blur();
+      expect(nodeColor(ctx.rings[0]!, 1)).toBe(0x000000);
+    });
+
+    it('focus that a pointer press causes does not expand anything', () => {
+      // Browsers do not match :focus-visible after a mouse or touch press.
+      const matches = Element.prototype.matches;
+      vi.spyOn(Element.prototype, 'matches').mockImplementation(function (this: Element, selector: string) {
+        return selector === ':focus-visible' ? false : matches.call(this, selector);
+      });
+      nameButton(ctx.root, 'experiences').focus();
+      expect(hovered(ctx.root)).toEqual([]);
+    });
+
+    it('Escape clears the selection and keeps the focused category expanded with focus on its name', () => {
+      nameButton(ctx.root, 'publications').focus();
+      nameButton(ctx.root, 'publications').click(); // Enter or Space on a button is a click
+      nodeButton(ctx.root, 'patents').focus();
+      expect(ctx.rings[0]!.isFlatMode).toBe(true);
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(ctx.store.getState().selectedRingId).toBeNull();
+      expect(ctx.rings[0]!.isFlatMode).toBe(false);
+      expect(document.activeElement).toBe(nameButton(ctx.root, 'publications'));
+      expect(hovered(ctx.root)).toEqual(['publications']);
+    });
+
+    it('Escape clears a selection made anywhere', () => {
+      ctx.store.toggleSelection('projects');
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(ctx.store.getState().selectedRingId).toBeNull();
+    });
+  });
+
   it('dispose() removes its elements and stops listening', () => {
     ctx.panel.dispose();
     expect(ctx.root.children).toHaveLength(0);
     ctx.store.toggleSelection('projects');
     document.body.click();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(ctx.store.getState().selectedRingId).toBe('projects');
   });
 });

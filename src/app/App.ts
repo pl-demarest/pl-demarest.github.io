@@ -1,4 +1,5 @@
 import { SECTIONS } from '../content/site';
+import type { SiteNode } from '../content/types';
 import { InteractionManager } from '../scene/InteractionManager';
 import { OrbitalRing } from '../scene/OrbitalRing';
 import { ParticleField } from '../scene/ParticleField';
@@ -51,7 +52,10 @@ export class App {
     initHeader();
     const panelRoot = document.getElementById('info-panel');
     if (panelRoot) {
-      const panel = new InfoPanel(panelRoot, SECTIONS, this.store, { sceneElement: canvas });
+      const panel = new InfoPanel(panelRoot, SECTIONS, this.store, {
+        sceneElement: canvas,
+        onNodeActivate: node => this.activateNode(node),
+      });
       this.teardowns.push(() => panel.dispose());
     }
     this.sceneManager = sm;
@@ -64,5 +68,11 @@ export class App {
   /** Disconnect the store bindings and the panel. */
   dispose(): void {
     for (const teardown of this.teardowns.splice(0).reverse()) teardown();
+  }
+
+  /** Carry out a node's action. Every node is { kind: 'none' } until Phase 2 adds targets. */
+  private activateNode(node: SiteNode): void {
+    if (node.action.kind === 'none') return;
+    console.warn(`node "${node.id}": "${node.action.kind}" actions are not implemented yet`);
   }
 }

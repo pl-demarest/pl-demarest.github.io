@@ -1,5 +1,5 @@
 import type { AppState, Store, Unsubscribe } from '../app/store';
-import type { Section } from '../content/types';
+import type { Section, SiteNode } from '../content/types';
 
 // Hover zones around the panel and around each category name, in CSS px.
 const PANEL_INFLATE_LEFT = 60;
@@ -17,12 +17,15 @@ export interface InfoPanelOptions {
    * does not treat it as a click outside.
    */
   sceneElement?: Element | null;
+  /** Called when a node button is activated (click, Enter or Space). */
+  onNodeActivate?: (node: SiteNode) => void;
 }
 
 interface Category {
   readonly id: string;
   readonly root: HTMLElement;
-  readonly name: HTMLElement;
+  readonly name: HTMLButtonElement;
+  readonly nodeButtons: readonly HTMLButtonElement[];
 }
 
 interface Layout {
@@ -32,17 +35,19 @@ interface Layout {
 }
 
 /**
- * The section list beside the scene. Pointer proximity hovers a category, a
- * click selects it, and a click outside the panel and the scene clears the
- * selection. All of it goes through the store, and the panel renders its
- * classes from the store.
+ * The section list beside the scene, and the scene's accessible equivalent.
+ * Categories and nodes are buttons. Pointer proximity and keyboard focus
+ * hover a category, a click or Enter or Space selects it, and Escape or a
+ * click outside clears the selection. All of it goes through the store, and
+ * the panel renders its classes and ARIA state from the store.
  */
 export class InfoPanel {
   private readonly root: HTMLElement;
   private readonly store: Store;
   private readonly sceneElement: Element | null;
+  private readonly onNodeActivate: ((node: SiteNode) => void) | undefined;
   private readonly categories: Category[] = [];
-  private readonly nodeElements = new Map<string, HTMLElement>();
+  private readonly nodeButtons = new Map<string, HTMLButtonElement>();
   private readonly listeners = new AbortController();
   private readonly unsubscribe: Unsubscribe;
   /** Cached rects; null until measured and after anything that moves them. */
@@ -54,12 +59,14 @@ export class InfoPanel {
     this.root = root;
     this.store = store;
     this.sceneElement = options.sceneElement ?? null;
+    this.onNodeActivate = options.onNodeActivate;
 
     const { signal } = this.listeners;
     for (const section of sections) this.categories.push(this.buildCategory(section, signal));
 
     document.addEventListener('pointermove', this.onDocumentPointerMove, { passive: true, signal });
     document.addEventListener('click', this.onDocumentClick, { signal });
+    document.addEventListener('keydown', this.onKeyDown, { signal });
     window.addEventListener('resize', this.invalidateLayout, { signal });
     window.addEventListener('scroll', this.invalidateLayout, { capture: true, passive: true, signal });
     root.addEventListener('transitionrun', this.onTransitionRun, { signal });
@@ -81,7 +88,7 @@ export class InfoPanel {
     this.unsubscribe();
     for (const category of this.categories) category.root.remove();
     this.categories.length = 0;
-    this.nodeElements.clear();
+    this.nodeButtons.clear();
     this.layout = null;
   }
 
@@ -90,39 +97,89 @@ export class InfoPanel {
     root.className = 'ip-category';
     root.dataset['ringId'] = section.id;
 
-    const name = document.createElement('div');
+    const nodesId = `ip-nodes-${section.id}`;
+    const name = document.createElement('button');
+    name.type = 'button';
     name.className = 'ip-category-name';
     name.textContent = section.label;
+    name.setAttribute('aria-controls', nodesId);
     name.addEventListener('click', () => this.store.toggleSelection(section.id), { signal });
     root.appendChild(name);
 
     const nodes = document.createElement('div');
     nodes.className = 'ip-nodes';
-    for (const node of section.nodes) {
-      const element = document.createElement('div');
-      element.className = 'ip-node';
-      element.dataset['nodeId'] = node.id;
-      element.textContent = node.label;
-      element.addEventListener('pointerenter', () => this.store.hoverNode(node.id, 'panel'), { signal });
-      element.addEventListener('pointerleave', () => this.store.hoverNode(null, 'panel'), { signal });
-      nodes.appendChild(element);
-      this.nodeElements.set(node.id, element);
-    }
+    nodes.id = nodesId;
+    const nodeButtons = section.nodes.map(node => {
+      const button = this.buildNodeButton(node, signal);
+      nodes.appendChild(button);
+      return button;
+    });
     root.appendChild(nodes);
 
+    // Keyboard focus anywhere in the category expands it the way hover does.
+    // Focus that follows a mouse or touch press is not :focus-visible, so a
+    // click changes the selection and nothing else.
+    root.addEventListener(
+      'focusin',
+      e => {
+        if (isKeyboardFocus(e.target)) this.store.hoverRing(section.id, 'panel');
+      },
+      { signal },
+    );
+    root.addEventListener(
+      'focusout',
+      e => {
+        if (e.relatedTarget instanceof Node && root.contains(e.relatedTarget)) return;
+        if (this.store.getState().hoveredRing?.id === section.id) this.store.hoverRing(null, 'panel');
+      },
+      { signal },
+    );
+
     this.root.appendChild(root);
-    return { id: section.id, root, name };
+    return { id: section.id, root, name, nodeButtons };
+  }
+
+  private buildNodeButton(node: SiteNode, signal: AbortSignal): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'ip-node';
+    button.dataset['nodeId'] = node.id;
+    button.textContent = node.label;
+
+    const hover = (): void => this.store.hoverNode(node.id, 'panel');
+    const unhover = (): void => {
+      if (this.store.getState().hoveredNode?.id === node.id) this.store.hoverNode(null, 'panel');
+    };
+    button.addEventListener('pointerenter', hover, { signal });
+    button.addEventListener('pointerleave', unhover, { signal });
+    button.addEventListener(
+      'focus',
+      e => {
+        if (isKeyboardFocus(e.target)) hover();
+      },
+      { signal },
+    );
+    button.addEventListener('blur', unhover, { signal });
+    button.addEventListener('click', () => this.onNodeActivate?.(node), { signal });
+
+    this.nodeButtons.set(node.id, button);
+    return button;
   }
 
   private render(state: AppState): void {
     const hoveredId = state.hoveredRing?.id ?? null;
     const sceneNodeId = state.hoveredNode?.source === 'scene' ? state.hoveredNode.id : null;
     for (const category of this.categories) {
-      category.root.classList.toggle('hovered', category.id === hoveredId);
-      category.root.classList.toggle('selected', category.id === state.selectedRingId);
+      const hovered = category.id === hoveredId;
+      const selected = category.id === state.selectedRingId;
+      category.root.classList.toggle('hovered', hovered);
+      category.root.classList.toggle('selected', selected);
+      category.name.setAttribute('aria-expanded', String(hovered || selected));
+      // Collapsed node buttons leave the tab order.
+      for (const button of category.nodeButtons) button.tabIndex = hovered || selected ? 0 : -1;
     }
     // A row hovered from the panel shows its own :hover style.
-    for (const [id, element] of this.nodeElements) element.classList.toggle('scene-hovered', id === sceneNodeId);
+    for (const [id, button] of this.nodeButtons) button.classList.toggle('scene-hovered', id === sceneNodeId);
   }
 
   private measure(): Layout {
@@ -182,6 +239,22 @@ export class InfoPanel {
     if (this.sceneElement?.contains(target)) return;
     this.store.clearSelection();
   };
+
+  private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key !== 'Escape') return;
+    this.store.clearSelection();
+    // A category with keyboard focus in it stays expanded as a hover, with
+    // focus on its name, so focus never rests on a collapsed node button.
+    const active = document.activeElement;
+    const focused = this.categories.find(c => c.root.contains(active));
+    if (!focused || !isKeyboardFocus(active)) return;
+    if (active !== focused.name) focused.name.focus();
+    this.store.hoverRing(focused.id, 'panel');
+  };
+}
+
+function isKeyboardFocus(target: EventTarget | null): boolean {
+  return target instanceof Element && target.matches(':focus-visible');
 }
 
 /** The unselected section whose inflated name rect contains the point. */
