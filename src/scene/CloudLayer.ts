@@ -4,11 +4,12 @@
  * The geometry comes from a binary glTF (GLB) file exported by
  * cloud-designer, so the page draws what the designer previews, through a
  * standard file format: every line primitive in the file is merged into
- * one edge buffer with its transform applied. LINES primitives (THREE.LineSegments) go in as they are; LINE_STRIP
- * and LINE_LOOP primitives (THREE.Line, THREE.LineLoop), such as the flow
- * lines in cloud-designer's wireframe exports, are converted to segment
- * pairs. Each cloud instance draws that buffer as THREE.LineSegments with
- * one shared material, drifts from +spread to -spread along X and bobs on Y.
+ * one edge buffer with its transform applied. LINES primitives
+ * (THREE.LineSegments) go in as they are; LINE_STRIP and LINE_LOOP
+ * primitives (THREE.Line, THREE.LineLoop), such as the flow lines in
+ * cloud-designer's wireframe exports, are converted to segment pairs. Each
+ * cloud instance draws that buffer as THREE.LineSegments with one shared
+ * material, drifts from +spread to -spread along X and bobs on Y.
  *
  * Not wired into the app yet: content's CLOUDS.asset is null until a GLB
  * exists. Usage:
