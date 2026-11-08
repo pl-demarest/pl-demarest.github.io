@@ -94,6 +94,10 @@ describe('App', () => {
 
     app.store.hoverNode('papers', 'scene');
     expect(document.querySelector('.ip-node.scene-hovered')?.getAttribute('data-node-id')).toBe('papers');
+
+    // Clicks on the running scene's canvas are the scene's to report.
+    document.getElementById('scene')!.click();
+    expect(app.store.getState().selectedRingId).toBe('projects');
   });
 
   it('dispose() stops the render loop, releases the renderer and the node geometry, and disconnects the panel', () => {
@@ -122,6 +126,9 @@ describe('App', () => {
     expect(document.querySelector('.header-name')).not.toBeNull();
     document.querySelector<HTMLElement>('.ip-category[data-ring-id="experiences"] .ip-category-name')!.click();
     expect(app.store.getState().selectedRingId).toBe('experiences');
+    // With no scene, the canvas is page background: a click on it is a click outside.
+    document.getElementById('scene')!.click();
+    expect(app.store.getState().selectedRingId).toBeNull();
     app.dispose();
     expect(document.querySelector('.scene-notice')).toBeNull();
   });

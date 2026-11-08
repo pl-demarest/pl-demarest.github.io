@@ -26,6 +26,29 @@ test.describe('without WebGL', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('.ip-category.selected')).toHaveCount(0);
   });
+
+  test('a click on the page background clears the selection', async ({ page }) => {
+    await page.addInitScript(() => {
+      const getContext = HTMLCanvasElement.prototype.getContext;
+      Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+        value(this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
+          if (type === 'webgl2' || type === 'webgl') return null;
+          return Reflect.apply(getContext, this, [type, ...rest]);
+        },
+      });
+    });
+    await openScene(page, 160);
+    await expect(page.locator('.scene-notice')).toBeVisible();
+
+    const projects = page.locator('.ip-category[data-ring-id="projects"]');
+    await projects.locator('.ip-category-name').click();
+    await expect(projects).toHaveClass(/\bselected\b/);
+
+    // Page background (the canvas, with no scene on it), clear of the
+    // header, the panel and the notice.
+    await page.mouse.click(300, 600);
+    await expect(page.locator('.ip-category.selected')).toHaveCount(0);
+  });
 });
 
 test.describe('reduced motion', () => {

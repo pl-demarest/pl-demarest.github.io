@@ -29,19 +29,16 @@ export class App {
   constructor() {
     initHeader();
 
-    const canvas = document.getElementById('scene');
-    const sceneElement = canvas instanceof HTMLCanvasElement ? canvas : null;
-
     const panelRoot = document.getElementById('info-panel');
-    if (panelRoot) {
-      const panel = new InfoPanel(panelRoot, SECTIONS, this.store, {
-        sceneElement,
-        onNodeActivate: node => this.activateNode(node),
-      });
-      this.disposers.push(() => panel.dispose());
-    }
+    const panel = panelRoot
+      ? new InfoPanel(panelRoot, SECTIONS, this.store, { onNodeActivate: node => this.activateNode(node) })
+      : null;
+    if (panel) this.disposers.push(() => panel.dispose());
 
-    if (sceneElement) this.createScene(sceneElement);
+    // Clicks on the canvas are the scene's to report once a scene exists on
+    // it; without one, the canvas is page background to the panel.
+    const canvas = document.getElementById('scene');
+    if (canvas instanceof HTMLCanvasElement && this.createScene(canvas)) panel?.setSceneElement(canvas);
   }
 
   start(): void {
@@ -55,14 +52,15 @@ export class App {
     this.sceneManager = null;
   }
 
-  private createScene(canvas: HTMLCanvasElement): void {
+  /** Build the scene on `canvas`. Returns false, with a notice shown, when WebGL is unavailable. */
+  private createScene(canvas: HTMLCanvasElement): boolean {
     let sm: SceneManager;
     try {
       sm = new SceneManager(canvas);
     } catch (error) {
       console.warn('The 3D scene could not start; the panel still works.', error);
       this.showSceneNotice();
-      return;
+      return false;
     }
 
     // Object creation order is part of the browser suite's contract: three.js
@@ -113,6 +111,7 @@ export class App {
       sm.dispose();
     });
     this.sceneManager = sm;
+    return true;
   }
 
   private showSceneNotice(): void {

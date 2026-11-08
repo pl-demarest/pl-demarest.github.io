@@ -44,7 +44,7 @@ interface Layout {
 export class InfoPanel {
   private readonly root: HTMLElement;
   private readonly store: Store;
-  private readonly sceneElement: Element | null;
+  private sceneElement: Element | null;
   private readonly onNodeActivate: ((node: SiteNode) => void) | undefined;
   private readonly categories: Category[] = [];
   private readonly nodeButtons = new Map<string, HTMLButtonElement>();
@@ -96,6 +96,11 @@ export class InfoPanel {
     this.nodeButtons.clear();
     this.layout = null;
     this.keyboardFocusId = null;
+  }
+
+  /** Set the scene's element (see InfoPanelOptions.sceneElement) once the scene exists. */
+  setSceneElement(element: Element | null): void {
+    this.sceneElement = element;
   }
 
   private buildCategory(section: Section, signal: AbortSignal): Category {
