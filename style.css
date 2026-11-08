@@ -28,15 +28,6 @@ html, body {
   touch-action: pinch-zoom;
 }
 
-/* ── Foreground blur overlay ── */
-
-#foreground-blur {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
-}
-
 /* ── Header ── */
 
 #header {
