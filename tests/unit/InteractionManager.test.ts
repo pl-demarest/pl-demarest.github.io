@@ -478,6 +478,22 @@ describe('InteractionManager', () => {
     expect(results[0]!.coupled).toBeCloseTo(60 * 0.125 * ORBITALS[1]!.couplingFactor, 12);
   });
 
+  it('during a drag, a move of another pointer leaves the scene hover alone', () => {
+    const [inner, , outer] = rig.rings as [OrbitalRing, OrbitalRing, OrbitalRing];
+    const p = ringPoint(rig, outer);
+    const finger = { pointerType: 'touch', buttons: 1 };
+    // The first finger presses the outer ring.
+    fire(rig.canvas, 'pointerdown', p, finger, 1000);
+    // A second finger, a non-primary pointer, moves over the inner ring.
+    fire(rig.canvas, 'pointermove', ringPoint(rig, inner), { ...finger, pointerId: 2, isPrimary: false }, 1008);
+    expect(rig.onHover).not.toHaveBeenCalled();
+    expect(rig.store.getState().hoveredRing).toBeNull();
+    expect(rig.canvas.style.cursor).toBe('grabbing');
+    // The first finger still drags: 20 px in the 16 ms since its press.
+    fire(rig.canvas, 'pointermove', { x: p.x + 20, y: p.y }, finger, 1016);
+    expect(outer.angularVelocity).toBeCloseTo((20 * 0.008) / 0.016, 12);
+  });
+
   it('a drag keeps going after the pointer leaves the canvas, until the release', () => {
     const ring = rig.rings[2]!;
     const p = ringPoint(rig, ring);

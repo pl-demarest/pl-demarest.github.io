@@ -170,7 +170,10 @@ export class InteractionManager {
     // No button is down any more: the release happened where the page could
     // not see it (after a window or app switch), so the press is over.
     if (this.press?.pointerId === e.pointerId && e.buttons === 0) this.endPress();
-    if (this.drag && this.press?.pointerId === e.pointerId) {
+    if (this.drag) {
+      // Only the pressing pointer counts during a drag: a second finger, or a
+      // mouse beside a touch, does not change the hover.
+      if (this.press?.pointerId !== e.pointerId) return;
       const dx = e.clientX - this.drag.lastX;
       const dy = e.clientY - this.drag.lastY;
       const interval = Math.max((e.timeStamp - this.drag.lastTime) / 1000, MIN_EVENT_INTERVAL);
