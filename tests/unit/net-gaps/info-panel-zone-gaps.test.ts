@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Store } from '../../../src/app/store';
 import { SECTIONS } from '../../../src/content/site';
 import { ORBITALS } from '../../../src/scene/config';
-import type * as InfoPanel from '../../../src/ui/info-panel';
+import { InfoPanel } from '../../../src/ui/InfoPanel';
 import { setViewport } from './viewport';
 
 // Gaps found by mutation testing (2026-11-07): the existing pointermove test
@@ -12,24 +12,15 @@ import { setViewport } from './viewport';
 // mobile top inflation, or the mobile nearest-name axis (x, not y) went
 // undetected. These tests probe each edge on both sides. happy-dom has no
 // layout, so the panel and name rects are fixed by stubbing
-// getBoundingClientRect.
-
-let added: Array<[string, EventListenerOrEventListenerObject]> = [];
+// getBoundingClientRect before the first pointermove measures them.
 
 const rect = (left: number, top: number, width: number, height: number) =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top }) as DOMRect;
 
-async function setup(): Promise<HTMLElement> {
+function setup(): { root: HTMLElement; panel: InfoPanel } {
   document.body.innerHTML = '<div id="info-panel"></div>';
-  vi.resetModules();
-  const realAdd = document.addEventListener.bind(document);
-  vi.spyOn(document, 'addEventListener').mockImplementation((type, listener, options) => {
-    if (listener) added.push([type, listener]);
-    realAdd(type, listener, options);
-  });
-  const panel: typeof InfoPanel = await import('../../../src/ui/info-panel');
-  panel.initInfoPanel(SECTIONS, new Store());
-  return document.getElementById('info-panel')!;
+  const root = document.getElementById('info-panel')!;
+  return { root, panel: new InfoPanel(root, SECTIONS, new Store()) };
 }
 
 function stubLayout(root: HTMLElement, panel: DOMRect, names: DOMRect[]): void {
@@ -48,12 +39,12 @@ const hovered = (root: HTMLElement) =>
 
 describe('info panel hover-zone edges', () => {
   let root: HTMLElement;
-  beforeEach(async () => {
-    root = await setup();
+  let panel: InfoPanel;
+  beforeEach(() => {
+    ({ root, panel } = setup());
   });
   afterEach(() => {
-    for (const [type, listener] of added) document.removeEventListener(type, listener);
-    added = [];
+    panel.dispose();
     document.body.innerHTML = '';
     setViewport(1024, 768);
   });

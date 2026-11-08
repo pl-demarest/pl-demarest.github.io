@@ -6,80 +6,91 @@ import { Store } from '../../src/app/store';
 import { SECTIONS } from '../../src/content/site';
 import { OrbitalRing } from '../../src/scene/OrbitalRing';
 import { ORBITALS } from '../../src/scene/config';
-import type * as InfoPanel from '../../src/ui/info-panel';
+import { InfoPanel } from '../../src/ui/InfoPanel';
 
-// info-panel.ts keeps its DOM references in module-level variables and
-// registers document listeners on init, so every test imports a fresh module
-// instance and removes the listeners that instance added. Hover and
-// selection live in the store; bindScene renders them onto the rings.
-
-type Panel = typeof InfoPanel;
+// The panel renders from the store, and bindScene renders the same store
+// onto real rings, so a panel action can be checked in the scene. happy-dom
+// has no layout: tests that need positions stub getBoundingClientRect.
 
 const HIGHLIGHT = 0xa27fb8;
-let added: Array<[string, EventListenerOrEventListenerObject]> = [];
+const PAGE =
+  '<header id="header"><a href="#" class="header-link">About</a></header>' +
+  '<canvas id="scene"></canvas><div id="info-panel"></div>';
 
-async function setup(): Promise<{ panel: Panel; rings: OrbitalRing[]; root: HTMLElement; store: Store }> {
-  document.body.innerHTML = '<canvas id="scene"></canvas><div id="info-panel"></div>';
-  vi.resetModules();
-  const realAdd = document.addEventListener.bind(document);
-  vi.spyOn(document, 'addEventListener').mockImplementation((type, listener, options) => {
-    if (listener) added.push([type, listener]);
-    realAdd(type, listener, options);
-  });
-  const panel: Panel = await import('../../src/ui/info-panel');
-  const rings = ORBITALS.map(cfg => new OrbitalRing(cfg));
-  const store = new Store();
-  bindScene(store, rings);
-  panel.initInfoPanel(SECTIONS, store);
-  return { panel, rings, root: document.getElementById('info-panel')!, store };
+interface Ctx {
+  panel: InfoPanel;
+  store: Store;
+  rings: OrbitalRing[];
+  root: HTMLElement;
+  canvas: HTMLElement;
 }
+
+function setup(): Ctx {
+  document.body.innerHTML = PAGE;
+  const root = document.getElementById('info-panel')!;
+  const canvas = document.getElementById('scene')!;
+  const store = new Store();
+  const rings = ORBITALS.map(cfg => new OrbitalRing(cfg));
+  bindScene(store, rings);
+  const panel = new InfoPanel(root, SECTIONS, store);
+  return { panel, store, rings, root, canvas };
+}
+
+const rect = (left: number, top: number, width: number, height: number) =>
+  ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top }) as DOMRect;
 
 function category(root: HTMLElement, ringId: string): HTMLElement {
   return root.querySelector<HTMLElement>(`.ip-category[data-ring-id="${ringId}"]`)!;
 }
 
-function clickName(root: HTMLElement, ringId: string): void {
-  category(root, ringId).querySelector<HTMLElement>('.ip-category-name')!.click();
+function nameElement(root: HTMLElement, ringId: string): HTMLElement {
+  return category(root, ringId).querySelector<HTMLElement>('.ip-category-name')!;
+}
+
+function nodeElement(root: HTMLElement, nodeId: string): HTMLElement {
+  return root.querySelector<HTMLElement>(`.ip-node[data-node-id="${nodeId}"]`)!;
 }
 
 function nodeColor(ring: OrbitalRing, i: number): number {
   return (ring.nodes[i]!.mesh.material as THREE.MeshBasicMaterial).color.getHex();
 }
 
-describe('info panel', () => {
-  let ctx: Awaited<ReturnType<typeof setup>>;
+const hovered = (root: HTMLElement) =>
+  [...root.querySelectorAll<HTMLElement>('.ip-category.hovered')].map(c => c.dataset['ringId']);
 
-  beforeEach(async () => {
-    ctx = await setup();
+const move = (x: number, y: number) =>
+  document.dispatchEvent(new PointerEvent('pointermove', { clientX: x, clientY: y }));
+
+describe('InfoPanel', () => {
+  let ctx: Ctx;
+
+  beforeEach(() => {
+    ctx = setup();
   });
   afterEach(() => {
-    for (const [type, listener] of added) document.removeEventListener(type, listener);
-    added = [];
+    ctx.panel.dispose();
     document.body.innerHTML = '';
   });
 
-  it('renders one category per ring with its nodes, in config order', () => {
+  it('renders one category per section with its nodes, in content order', () => {
     const cats = [...ctx.root.querySelectorAll<HTMLElement>('.ip-category')];
-    expect(cats.map(c => c.dataset['ringId'])).toEqual(ORBITALS.map(o => o.id));
-    expect(cats.map(c => c.querySelector('.ip-category-name')!.textContent)).toEqual(
-      ORBITALS.map(o => o.label),
-    );
+    expect(cats.map(c => c.dataset['ringId'])).toEqual(SECTIONS.map(s => s.id));
+    expect(cats.map(c => c.querySelector('.ip-category-name')!.textContent)).toEqual(SECTIONS.map(s => s.label));
     cats.forEach((cat, i) => {
       const nodes = [...cat.querySelectorAll<HTMLElement>('.ip-nodes > .ip-node')];
-      expect(nodes.map(n => n.dataset['nodeId'])).toEqual(ORBITALS[i]!.nodes.map(n => n.id));
-      expect(nodes.map(n => n.textContent)).toEqual(ORBITALS[i]!.nodes.map(n => n.label));
+      expect(nodes.map(n => n.dataset['nodeId'])).toEqual(SECTIONS[i]!.nodes.map(n => n.id));
+      expect(nodes.map(n => n.textContent)).toEqual(SECTIONS[i]!.nodes.map(n => n.label));
     });
     expect(ctx.root.querySelector('.selected, .hovered')).toBeNull();
   });
 
   it('clicking a category selects it, flattens its ring and highlights its nodes', () => {
     const ring = ctx.rings[1]!;
-    clickName(ctx.root, ring.config.id);
+    nameElement(ctx.root, ring.config.id).click();
     expect(category(ctx.root, ring.config.id).classList.contains('selected')).toBe(true);
     expect(ring.isFlatMode).toBe(true);
     expect(ring.angularVelocity).toBe(0);
     ring.nodes.forEach((_, i) => expect(nodeColor(ring, i)).toBe(HIGHLIGHT));
-    // Other rings are untouched.
     for (const other of ctx.rings.filter(r => r !== ring)) {
       expect(other.isFlatMode).toBe(false);
       expect(category(ctx.root, other.config.id).classList.contains('selected')).toBe(false);
@@ -88,8 +99,8 @@ describe('info panel', () => {
 
   it('a second click on the same category deselects it', () => {
     const ring = ctx.rings[0]!;
-    clickName(ctx.root, ring.config.id);
-    clickName(ctx.root, ring.config.id);
+    nameElement(ctx.root, ring.config.id).click();
+    nameElement(ctx.root, ring.config.id).click();
     expect(category(ctx.root, ring.config.id).classList.contains('selected')).toBe(false);
     expect(ring.isFlatMode).toBe(false);
     expect(ring.angularVelocity).toBe(ring.config.speed);
@@ -98,8 +109,8 @@ describe('info panel', () => {
 
   it('clicking another category moves the selection', () => {
     const [a, b] = ctx.rings as [OrbitalRing, OrbitalRing];
-    clickName(ctx.root, a.config.id);
-    clickName(ctx.root, b.config.id);
+    nameElement(ctx.root, a.config.id).click();
+    nameElement(ctx.root, b.config.id).click();
     expect(a.isFlatMode).toBe(false);
     expect(b.isFlatMode).toBe(true);
     expect(ctx.root.querySelectorAll('.ip-category.selected')).toHaveLength(1);
@@ -108,8 +119,8 @@ describe('info panel', () => {
 
   it('a click outside the panel clears the selection', () => {
     const ring = ctx.rings[2]!;
-    clickName(ctx.root, ring.config.id);
-    document.getElementById('scene')!.click();
+    nameElement(ctx.root, ring.config.id).click();
+    ctx.canvas.click();
     expect(ctx.root.querySelector('.ip-category.selected')).toBeNull();
     expect(ring.isFlatMode).toBe(false);
   });
@@ -120,9 +131,9 @@ describe('info panel', () => {
     expect(ring.isFlatMode).toBe(true);
     // The canvas pointerup that triggered the selection is followed by a
     // document click; that one click is ignored.
-    document.getElementById('scene')!.click();
+    ctx.canvas.click();
     expect(ring.isFlatMode).toBe(true);
-    document.getElementById('scene')!.click();
+    ctx.canvas.click();
     expect(ring.isFlatMode).toBe(false);
   });
 
@@ -136,26 +147,28 @@ describe('info panel', () => {
 
   it('a scene ring hover does not mark the selected category as hovered', () => {
     const ring = ctx.rings[1]!;
-    clickName(ctx.root, ring.config.id);
+    nameElement(ctx.root, ring.config.id).click();
     ctx.store.hoverRing(ring.config.id, 'scene');
     expect(category(ctx.root, ring.config.id).classList.contains('hovered')).toBe(false);
   });
 
   it('a scene node hover marks exactly one panel node and clears on null', () => {
+    const marked = () =>
+      [...ctx.root.querySelectorAll<HTMLElement>('.ip-node.scene-hovered')].map(n => n.dataset['nodeId']);
     ctx.store.hoverNode('patents', 'scene');
-    const marked = [...ctx.root.querySelectorAll<HTMLElement>('.ip-node.scene-hovered')];
-    expect(marked.map(n => n.dataset['nodeId'])).toEqual(['patents']);
+    expect(marked()).toEqual(['patents']);
     ctx.store.hoverNode('code', 'scene');
-    expect(
-      [...ctx.root.querySelectorAll<HTMLElement>('.ip-node.scene-hovered')].map(n => n.dataset['nodeId']),
-    ).toEqual(['code']);
+    expect(marked()).toEqual(['code']);
     ctx.store.hoverNode(null, 'scene');
-    expect(ctx.root.querySelector('.ip-node.scene-hovered')).toBeNull();
+    expect(marked()).toEqual([]);
+    // A row hovered from the panel uses its own :hover style instead.
+    ctx.store.hoverNode('code', 'panel');
+    expect(marked()).toEqual([]);
   });
 
   it('pointer enter and leave on a panel node hover the scene node', () => {
     const ring = ctx.rings[0]!;
-    const el = ctx.root.querySelector<HTMLElement>('.ip-node[data-node-id="papers"]')!;
+    const el = nodeElement(ctx.root, 'papers');
     el.dispatchEvent(new PointerEvent('pointerenter'));
     expect(nodeColor(ring, 0)).toBe(HIGHLIGHT);
     el.dispatchEvent(new PointerEvent('pointerleave'));
@@ -163,35 +176,36 @@ describe('info panel', () => {
   });
 
   it('document pointermove expands the nearest category inside the inflated panel zone', () => {
-    // happy-dom has no layout, so give the panel and the names fixed rects
-    // (desktop: names stacked 30 px apart on the right).
-    const rect = (left: number, top: number, width: number, height: number) =>
-      ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top }) as DOMRect;
+    // Desktop: names stacked 30 px apart on the right.
     vi.spyOn(ctx.root, 'getBoundingClientRect').mockReturnValue(rect(900, 300, 100, 90));
     ORBITALS.forEach((o, i) => {
-      const name = category(ctx.root, o.id).querySelector<HTMLElement>('.ip-category-name')!;
-      vi.spyOn(name, 'getBoundingClientRect').mockReturnValue(rect(940, 300 + i * 30, 60, 20));
+      vi.spyOn(nameElement(ctx.root, o.id), 'getBoundingClientRect').mockReturnValue(rect(940, 300 + i * 30, 60, 20));
     });
-    const move = (x: number, y: number) =>
-      document.dispatchEvent(new PointerEvent('pointermove', { clientX: x, clientY: y }));
-    const hovered = () =>
-      [...ctx.root.querySelectorAll<HTMLElement>('.ip-category.hovered')].map(c => c.dataset['ringId']);
 
     // Inside the panel's 60 px left inflation; nothing hovered yet, so the
     // name nearest in y wins.
     move(860, 342);
-    expect(hovered()).toEqual(['experiences']);
+    expect(hovered(ctx.root)).toEqual(['experiences']);
     expect(ctx.rings[1]!.isFlatMode).toBe(false);
 
     // With a category hovered, only a direct (inflated) name hit switches it.
     move(905, 365);
-    expect(hovered()).toEqual(['projects']);
+    expect(hovered(ctx.root)).toEqual(['projects']);
     move(850, 305); // inside the panel zone but left of every inflated name
-    expect(hovered()).toEqual(['projects']);
+    expect(hovered(ctx.root)).toEqual(['projects']);
 
     // Leaving the inflated panel zone clears a panel-sourced hover.
     move(500, 340);
-    expect(hovered()).toEqual([]);
+    expect(hovered(ctx.root)).toEqual([]);
+  });
+
+  it('dispose() removes its elements and stops listening', () => {
+    ctx.panel.dispose();
+    expect(ctx.root.children).toHaveLength(0);
+    ctx.store.toggleSelection('projects');
+    document.body.click();
+    expect(ctx.store.getState().selectedRingId).toBe('projects');
+    ctx.panel.selectRingFromScene('experiences');
+    expect(ctx.store.getState().selectedRingId).toBe('projects');
   });
 });
-

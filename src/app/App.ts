@@ -4,8 +4,8 @@ import { OrbitalRing } from '../scene/OrbitalRing';
 import { ParticleField } from '../scene/ParticleField';
 import { SceneManager } from '../scene/SceneManager';
 import { ORBITALS } from '../scene/config';
+import { InfoPanel } from '../ui/InfoPanel';
 import { initHeader } from '../ui/header';
-import { initInfoPanel, selectRingFromScene } from '../ui/info-panel';
 import { bindScene } from './sceneBinding';
 import { Store } from './store';
 
@@ -18,6 +18,7 @@ export class App {
   readonly store = new Store();
   private readonly sceneManager: SceneManager;
   private readonly teardowns: Array<() => void> = [];
+  private panel: InfoPanel | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     // Object creation order is part of the browser suite's contract: three.js
@@ -38,7 +39,7 @@ export class App {
     const interaction = new InteractionManager(sm.camera, canvas);
     interaction.setRings(rings);
     interaction.setRingHoverCallback(ring => this.store.hoverRing(ring?.config.id ?? null, 'scene'));
-    interaction.setRingClickCallback(ring => selectRingFromScene(ring.config.id));
+    interaction.setRingClickCallback(ring => this.panel?.selectRingFromScene(ring.config.id));
     interaction.setHoverCallback(node => this.store.hoverNode(node?.config.id ?? null, 'scene'));
     this.teardowns.push(bindScene(this.store, rings));
 
@@ -48,7 +49,12 @@ export class App {
     });
 
     initHeader();
-    this.teardowns.push(initInfoPanel(SECTIONS, this.store));
+    const panelRoot = document.getElementById('info-panel');
+    if (panelRoot) {
+      const panel = new InfoPanel(panelRoot, SECTIONS, this.store);
+      this.panel = panel;
+      this.teardowns.push(() => panel.dispose());
+    }
     this.sceneManager = sm;
   }
 
