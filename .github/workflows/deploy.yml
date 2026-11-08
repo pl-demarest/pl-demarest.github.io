@@ -26,6 +26,10 @@ jobs:
           cache: npm
 
       - run: npm ci
+      # The unit tests run validateContent: a content mistake that would
+      # blank the page (a section without a layout, a node without an
+      # angle) stops the deploy here. The build alone passes it.
+      - run: npm test
       - run: npm run build
 
       - uses: actions/configure-pages@v5
