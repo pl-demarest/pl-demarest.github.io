@@ -371,6 +371,22 @@ describe('InfoPanel', () => {
     expect(reads()).toEqual([4, 4, 4, 4]);
   });
 
+  it('reads the rects on every move while a panel transition runs, and caches them again after', () => {
+    const panelRect = vi.spyOn(ctx.root, 'getBoundingClientRect').mockReturnValue(rect(900, 300, 100, 90));
+    ORBITALS.forEach((o, i) => {
+      vi.spyOn(nameButton(ctx.root, o.id), 'getBoundingClientRect').mockReturnValue(rect(940, 300 + i * 30, 60, 20));
+    });
+    move(100, 100); // measured once
+    ctx.root.dispatchEvent(new Event('transitionrun'));
+    move(110, 100);
+    move(120, 100);
+    expect(panelRect).toHaveBeenCalledTimes(3);
+    ctx.root.dispatchEvent(new Event('transitionend'));
+    move(130, 100); // measured again, then kept
+    move(140, 100);
+    expect(panelRect).toHaveBeenCalledTimes(4);
+  });
+
   describe('keyboard', () => {
     it('focus on a category expands it like hover, and focus leaving the category collapses it', () => {
       nameButton(ctx.root, 'experiences').focus();
@@ -468,6 +484,17 @@ describe('InfoPanel', () => {
       expect(ctx.rings[0]!.isFlatMode).toBe(false);
       expect(document.activeElement).toBe(nameButton(ctx.root, 'publications'));
       expect(hovered(ctx.root)).toEqual(['publications']);
+      // The panel's hover, as for any focus from the keyboard.
+      expect(ctx.store.getState().hoveredRing).toEqual({ id: 'publications', source: 'panel' });
+    });
+
+    it('Escape on the selected name itself leaves its category hovered from the panel', () => {
+      // Focus stays where it is, so no focus event reports the hover.
+      nameButton(ctx.root, 'publications').focus();
+      nameButton(ctx.root, 'publications').click();
+      expect(ctx.store.getState()).toMatchObject({ selectedRingId: 'publications', hoveredRing: null });
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(ctx.store.getState()).toMatchObject({ selectedRingId: null, hoveredRing: { id: 'publications', source: 'panel' } });
     });
 
     it('Escape clears a selection made anywhere', () => {
@@ -478,8 +505,12 @@ describe('InfoPanel', () => {
   });
 
   it('dispose() removes its elements and stops listening', () => {
+    const storeListeners = () => (ctx.store as unknown as { listeners: Set<unknown> }).listeners.size;
+    const withPanel = storeListeners();
     ctx.panel.dispose();
     expect(ctx.root.children).toHaveLength(0);
+    // Its store subscription ends too; bindScene's stay.
+    expect(storeListeners()).toBe(withPanel - 1);
     ctx.store.toggleSelection('projects');
     document.body.click();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));

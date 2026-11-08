@@ -6,7 +6,11 @@ import { setViewport } from './net-gaps/viewport';
 
 // happy-dom has no WebGL: the renderer is a stub that records the pixel
 // ratio and size it is given.
-const calls = vi.hoisted(() => ({ pixelRatio: [] as number[], size: [] as Array<[number, number]> }));
+const calls = vi.hoisted(() => ({
+  pixelRatio: [] as number[],
+  size: [] as Array<[number, number]>,
+  loop: null as ((time: number) => void) | null,
+}));
 vi.mock('three', async importOriginal => {
   const actual = await importOriginal<typeof ThreeModule>();
   class StubRenderer {
@@ -16,7 +20,9 @@ vi.mock('three', async importOriginal => {
     setSize(width: number, height: number): void {
       calls.size.push([width, height]);
     }
-    setAnimationLoop(): void {}
+    setAnimationLoop(loop: ((time: number) => void) | null): void {
+      calls.loop = loop;
+    }
     render(): void {}
     dispose(): void {}
   }
@@ -58,6 +64,7 @@ describe('SceneManager pixel ratio', () => {
   beforeEach(() => {
     calls.pixelRatio = [];
     calls.size = [];
+    calls.loop = null;
     setViewport(1024, 768);
     setPixelRatio(1);
   });
@@ -100,5 +107,37 @@ describe('SceneManager pixel ratio', () => {
     setPixelRatio(2);
     for (const q of queries) q.fire();
     expect(calls.pixelRatio).toHaveLength(count);
+  });
+});
+
+describe('SceneManager', () => {
+  afterEach(() => {
+    setViewport(1024, 768);
+  });
+
+  it('caps the step it passes to tick callbacks at 0.05 s, as after a stalled tab', () => {
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const sm = new SceneManager(document.createElement('canvas'));
+    const steps: number[] = [];
+    sm.onTick(dt => steps.push(dt));
+    sm.start();
+    now += 1000 / 60;
+    calls.loop?.(now);
+    now += 200;
+    calls.loop?.(now);
+    expect(steps[0]).toBeCloseTo(1 / 60, 12);
+    expect(steps[1]).toBe(0.05);
+    sm.dispose();
+  });
+
+  it('dispose() stops the loop and stops following window resizes', () => {
+    const sm = new SceneManager(document.createElement('canvas'));
+    sm.start();
+    sm.dispose();
+    expect(calls.loop).toBeNull();
+    const sizes = calls.size.length;
+    setViewport(800, 600);
+    expect(calls.size).toHaveLength(sizes);
   });
 });

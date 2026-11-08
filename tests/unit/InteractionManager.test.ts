@@ -525,6 +525,28 @@ describe('InteractionManager', () => {
     expect(rig.onRingClick).not.toHaveBeenCalled();
   });
 
+  it('a burst of moves spins the ring no faster than one move per 1/240 s', () => {
+    // 20 px 1 ms after the press: read as 20 px in 1/240 s, not in 1 ms.
+    const ring = rig.rings[2]!;
+    const p = ringPoint(rig, ring);
+    fire(rig.canvas, 'pointerdown', p, { buttons: 1 }, 1000);
+    fire(rig.canvas, 'pointermove', { x: p.x + 20, y: p.y }, HELD, 1001);
+    expect(ring.angularVelocity).toBeCloseTo(20 * 0.008 * 240, 9);
+  });
+
+  it('moving from a ring onto one of its own nodes, and back, reports each change', () => {
+    const ring = rig.rings[0]!;
+    const node = ring.nodes[0]!;
+    fire(rig.canvas, 'pointermove', ringPoint(rig, ring));
+    expect(rig.onHover).toHaveBeenLastCalledWith({ ring, node: null });
+    fire(rig.canvas, 'pointermove', nodePoint(rig, node));
+    expect(rig.onHover).toHaveBeenLastCalledWith({ ring, node });
+    expect(rig.canvas.style.cursor).toBe('pointer');
+    fire(rig.canvas, 'pointermove', ringPoint(rig, ring));
+    expect(rig.onHover).toHaveBeenLastCalledWith({ ring, node: null });
+    expect(rig.onHover).toHaveBeenCalledTimes(3);
+  });
+
   it('drag spin follows the pointer speed, so the event rate does not change it', () => {
     // The same 60 px stroke in 100 ms, sent at 60 Hz and at 120 Hz.
     const strokes = [
