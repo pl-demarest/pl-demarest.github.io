@@ -382,6 +382,22 @@ describe('InteractionManager', () => {
     expect(rig.onBackgroundClick).not.toHaveBeenCalled();
   });
 
+  it('after a drag, the hover and the cursor follow what is under the release point', () => {
+    const ring = rig.rings[2]!;
+    const p = ringPoint(rig, ring);
+    fire(rig.canvas, 'pointermove', p);
+    expect(rig.store.getState().hoveredRing).toEqual({ id: ring.config.id, source: 'scene' });
+    fire(rig.canvas, 'pointerdown', p, { buttons: 1 }, 1000);
+    for (let i = 1; i <= 6; i++) {
+      fire(rig.canvas, 'pointermove', { x: p.x + ((EMPTY.x - p.x) * i) / 6, y: p.y + ((EMPTY.y - p.y) * i) / 6 }, HELD, 1000 + i * 16);
+    }
+    // Released over empty canvas: no move follows to update the hover.
+    fire(rig.canvas, 'pointerup', EMPTY);
+    expect(rig.onHover).toHaveBeenLastCalledWith(null);
+    expect(rig.store.getState().hoveredRing).toBeNull();
+    expect(rig.canvas.style.cursor).toBe('default');
+  });
+
   it('a release without a press on the canvas is not a click', () => {
     const p = ringPoint(rig, rig.rings[1]!);
     fire(rig.canvas, 'pointermove', p);

@@ -208,6 +208,10 @@ export class InteractionManager {
     const press = this.press;
     if (!press || press.pointerId !== e.pointerId) return;
     this.endPress();
+    // The hover stood still during the press. A mouse or pen is now over
+    // whatever lies under the release point (a pointerleave follows if that
+    // is not the canvas); a touch that lifts leaves the canvas.
+    if (e.pointerType !== 'touch') this.setHovered(this.pick(e.clientX, e.clientY));
     if (press.moved || Math.hypot(e.clientX - press.x, e.clientY - press.y) >= CLICK_THRESHOLD) return;
 
     const { target } = press;
