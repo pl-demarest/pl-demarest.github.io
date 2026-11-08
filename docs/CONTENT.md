@@ -63,7 +63,7 @@ All lengths are three.js world units. The desktop camera sits at (0, 5.5, 8) wit
 |---|---|---|
 | `radiusX`, `radiusY` | world units | The ellipse's half-axes in the ring's own plane (its local x and z). |
 | `tilt.x`, `tilt.z` | radians | The ring's rotation about x and z. The ring returns to this tilt after a drag; a selected ring turns face-on instead (x = pi/2, z = 0). |
-| `speed` | radians per second | The cruise: how fast the ring turns once it settles, at any frame rate. A negative value turns it the other way, though `config.test.ts` expects positive speeds today. A ring starts faster (at `speed / CRUISE_RATIO`, about 3.97 times `speed`; `CRUISE_RATIO` is in `OrbitalRing.ts`) and settles to `speed`; after a drag, friction brings it back to `speed`. |
+| `speed` | radians per second | The cruise: how fast the ring turns once it settles, at any frame rate. A negative value turns it the other way; `config.test.ts` rejects zero, which would leave the ring still. A ring starts faster (at `speed / CRUISE_RATIO`, about 3.97 times `speed`; `CRUISE_RATIO` is in `OrbitalRing.ts`) and settles to `speed`; after a drag, friction brings it back to `speed`. |
 | `couplingFactor` | a share, today 0.3 to 0.4 | How much of a drag on another ring this ring takes: 0.125 rad/s of spin per pixel of horizontal drag and 0.005 rad/s of tilt per pixel, times this factor. The dragged ring itself turns 0.008 rad per pixel of pointer movement. A selected ring takes no coupled motion. |
 | `nodeAngles` | radians, by node id | Where each node sits: at (cos(t + a) x `radiusX`, 0, sin(t + a) x `radiusY`) in the ring's frame, where `a` is the node's angle and `t` the ring's orbit angle, 0 when the page loads and growing as the ring turns. Spread n nodes evenly with steps of 2 pi / n. |
 
@@ -81,7 +81,7 @@ With `prefers-reduced-motion`, rings do not turn on their own and the flat view 
 - Actions: `external` needs an absolute `http(s)` URL; `route` a path that starts with `/` and not `//`; `suborbital` an existing section other than its own; any other kind is reported.
 - Links: a non-empty label, and an `href` that is an absolute `http(s)` URL or a path that starts with `/`.
 
-It does not check signs or sizes. `config.test.ts` checks that radii, speeds and coupling factors are positive and the rings are ordered inside out, and it pins today's section and node labels.
+It does not check signs or sizes. `config.test.ts` checks that radii and coupling factors are positive, that no speed is zero (a negative speed is allowed), and that the rings are ordered inside out, and it pins today's section and node labels.
 
 ## Run the tests
 
