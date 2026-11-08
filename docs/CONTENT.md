@@ -11,13 +11,15 @@ For Phase 2 contributors: how the landing page's sections, nodes, links and node
 | `src/content/layout.ts` | `LAYOUT`: where each section's orbit sits, keyed by section id |
 | `src/content/validate.ts` | `validateContent()` and `validateClouds()`, run by `tests/unit/content.test.ts` |
 | `src/scene/config.ts` | `ORBITALS = buildOrbitals(SECTIONS, LAYOUT)`: each section joined with its layout, which the scene draws |
+| `src/ui/header.ts` | The owner's name and the header's links (their targets are not set yet) |
+| `index.html` | The page's `<title>` |
 
 Each section is one ring in the scene and one category in the panel. Each node is a wireframe sphere on its ring and a button under its category.
 
 ## Add a section
 
 1. Add a `Section` to `SECTIONS` in `site.ts`: `{ id, label, nodes }`. Order matters: the first section is the innermost ring, the top category on desktop and the leftmost on mobile.
-2. Add an `OrbitLayout` under the same id to `LAYOUT` in `layout.ts`, with an angle in `nodeAngles` for every node (see [Layout values](#layout-values)). Keep the rings ordered inside out: each `radiusX` larger than the one before (`tests/unit/config.test.ts` checks this).
+2. Add an `OrbitLayout` under the same id to `LAYOUT` in `layout.ts`, with an angle in `nodeAngles` for every node (see [Layout values](#layout-values)). Keep the rings ordered inside out: each `radiusX` larger than the one before (`tests/unit/config.test.ts` checks this). Today's outer ring is already close to the edge of the view: see [How large a ring can be](#how-large-a-ring-can-be).
 3. Run the tests and update the ones that pin today's three sections (see [Tests that pin today's content](#tests-that-pin-todays-content)).
 
 Ids are single tokens of letters, digits, `-` and `_`, unique across sections and nodes together: a section id becomes the panel's `data-ring-id`, the node list's DOM id `ip-nodes-<id>` and its name's `aria-controls`, a node id becomes `data-node-id`, and both key the scene's lookups.
@@ -82,6 +84,21 @@ A drag spins the dragged ring at 0.008 rad per pixel of horizontal pointer movem
 
 With `prefers-reduced-motion`, rings do not turn on their own and the flat view snaps instead of easing; a drag still turns them, and they coast to rest.
 
+### How large a ring can be
+
+The camera presets were set for today's rings, and the outer one, Projects (4.2 x 3.0), nearly fills the view. Projected through today's presets, for a ring tilted and shaped like Projects:
+
+- On a phone 375 px wide, `radiusX` up to about 4.5 keeps the ring on the screen. Projects spans x 13 to 350 px; at 4.62 the ring reaches past the left edge.
+- In a 1280 x 800 window, a selected (flat) ring's top reaches the header (its box ends at y 96) once `radiusY` passes about 3.05: Projects' flat top is at y 102. Its right side passes under the panel (from x 1141) once `radiusX` passes about 4.9.
+- In narrower desktop windows the rings keep their size on screen while the panel moves left, so there is less room.
+
+A larger ring needs new camera presets, `DESKTOP_CAMERA` and `MOBILE_CAMERA` in `src/scene/SceneManager.ts`; check the result at both sizes, with the ring selected.
+
+### How much the panel holds
+
+- A node list shows about 25 nodes in an 800 px tall desktop window (it is at most 70 % of the window's height, or 40rem) and 14 on mobile (at most 50 %, or 20rem). Rows beyond that are cut off; the list does not scroll.
+- The mobile bar fits three names of today's length at 375 px. With a fourth section (tried with the label 'Talks'), the enlarged name of a selected section overlaps its neighbours by 2 to 3 px.
+
 ## What `validateContent` checks
 
 `validateContent(SECTIONS, LAYOUT)` returns one message per problem; `content.test.ts` expects none.
@@ -96,7 +113,7 @@ With `prefers-reduced-motion`, rings do not turn on their own and the flat view 
 
 `validateClouds(CLOUDS)` checks the cloud asset: `null`, or a path under the site root without a leading `/` that names a `.glb` file; `content.test.ts` runs it too.
 
-`validateContent` does not check signs or sizes. `config.test.ts` checks that radii and coupling factors are positive, that no speed is zero (a negative speed is allowed), and that the rings are ordered inside out, and it pins today's section and node labels.
+`validateContent` does not check signs or sizes. `config.test.ts` checks that every section has at least one node, that radii and coupling factors are positive, that no speed is zero (a negative speed is allowed), and that the rings are ordered inside out, and it pins today's section and node labels.
 
 ## Run the tests
 
@@ -120,15 +137,17 @@ The browser suite holds every page still (`tests/e2e/support/fixtures.ts`): the 
 Adding, removing or reordering sections or nodes can need these updates:
 
 - `tests/unit/config.test.ts`: 'pins the current section order and labels'.
+- `tests/unit/OrbitalRing.test.ts`: `LEGACY_SPEED` (each ring's speed before the change to rad/s) and the table of frames each ring takes to lie flat name today's three rings. A new ring needs no entry; renaming or removing one of them needs its entries changed.
 - `tests/e2e/keyboard.spec.ts`: the accessibility snapshots list the three section buttons, with `/children: equal`.
+- `tests/e2e/mobile.spec.ts`: 'collapsed node lists above the bar let taps through' taps Publications' last node, Presentations.
 - `tests/unit/content.test.ts`: every node's action is `none`, `CLOUDS` has no asset, and the Code node's link.
-- Unit and browser tests that use today's sections and nodes as fixtures (`InfoPanel.test.ts`, `net-gaps/info-panel-zone-gaps.test.ts`, `App.test.ts`, `desktop.spec.ts`, `keyboard.spec.ts`): they keep working while those sections and nodes exist with their ids and order; expected values change if the count or order changes.
+- Unit and browser tests that use today's sections and nodes as fixtures (`InfoPanel.test.ts`, `net-gaps/info-panel-zone-gaps.test.ts`, `App.test.ts`, `desktop.spec.ts`, `keyboard.spec.ts`): they keep working while those sections and nodes exist with their ids and order; expected values change if the count or order changes. The tab-order walk in `keyboard.spec.ts` reads its stops from `SECTIONS`.
 - `tests/e2e/desktop.spec.ts` checks that its empty point (60, 740) has no ring or node under it; a larger ring can cover it.
-- The screenshot baselines, below.
+- The screenshot baselines, below: a new section adds one.
 
 ### Update screenshot baselines on purpose
 
-Six screenshots in `tests/e2e/__screenshots__/` are compared with `maxDiffPixels: 0`: desktop idle, desktop with each section selected, mobile idle and mobile with Projects selected. They are recorded on macOS (`-darwin` in the file name); on another platform these tests find no baseline and fail.
+The screenshots in `tests/e2e/__screenshots__/` are compared with `maxDiffPixels: 0`: desktop idle, desktop with each section selected, mobile idle and mobile with Projects selected, six today. The desktop selection test runs once per section, so a new section adds a test whose baseline does not exist yet: it fails until you record it with `--update-snapshots` (step 2 below). They are recorded on macOS (`-darwin` in the file name); on another platform these tests find no baseline and fail.
 
 A change that alters what the page draws (a section or node, a layout value, a style) changes them, and a test that fails then is reporting the change. To update them:
 
