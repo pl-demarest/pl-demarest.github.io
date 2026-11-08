@@ -167,9 +167,11 @@ export class InteractionManager {
   };
 
   private readonly onPointerMove = (e: PointerEvent): void => {
-    // No button is down any more: the release happened where the page could
-    // not see it (after a window or app switch), so the press is over.
-    if (this.press?.pointerId === e.pointerId && e.buttons === 0) this.endPress();
+    // A mouse with no button down any more: the release happened where the
+    // page could not see it (after a window or app switch), so the press is
+    // over. Only the mouse is read this way: a touch or pen contact reports
+    // buttons 1, and a browser that sent 0 would end such drags at once.
+    if (e.pointerType === 'mouse' && this.press?.pointerId === e.pointerId && e.buttons === 0) this.endPress();
     if (this.drag) {
       // Only the pressing pointer counts during a drag: a second finger, or a
       // mouse beside a touch, does not change the hover.

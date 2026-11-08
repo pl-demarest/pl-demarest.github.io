@@ -529,6 +529,20 @@ describe('InteractionManager', () => {
     expect(rig.onRingClick).not.toHaveBeenCalled();
   });
 
+  it('a touch move that reports no buttons does not end the press', () => {
+    // Pointer Events give a touch contact buttons 1, and Chrome does. Safari
+    // and Firefox are unverified; one that reported 0 must not end every
+    // touch drag at its first move, so only a mouse press ends this way.
+    const ring = rig.rings[2]!;
+    const p = ringPoint(rig, ring);
+    fire(rig.canvas, 'pointerdown', p, { pointerType: 'touch', buttons: 1 }, 1000);
+    fire(rig.canvas, 'pointermove', { x: p.x + 20, y: p.y }, { pointerType: 'touch', buttons: 0 }, 1016);
+    expect(ring.angularVelocity).toBeCloseTo((20 * 0.008) / 0.016, 12);
+    expect(rig.canvas.style.cursor).toBe('grabbing');
+    fire(rig.canvas, 'pointerup', { x: p.x + 20, y: p.y }, { pointerType: 'touch' });
+    expect(rig.canvas.style.cursor).not.toBe('grabbing');
+  });
+
   it('pointercancel ends a drag without a click', () => {
     const ring = rig.rings[2]!;
     const p = ringPoint(rig, ring);
