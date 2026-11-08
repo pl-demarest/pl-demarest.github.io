@@ -8,12 +8,11 @@ import { ORBITALS } from '../../src/scene/config';
 import { buildLinesGlb, glbDataUrl } from './helpers/glb';
 import { ringAngle, step } from './helpers/sim';
 
-// Known defects from the 2026-11-07 audit (audit.json, reports
-// "github-landing" and "repo-hygiene-and-contract"). Each test asserts the
-// CORRECT behaviour. While a bug existed its test was marked it.fails; the
-// fix commit flipped it to `it`, so all of them now guard against a
-// regression. Test names start with the audit finding id. Add a new known
-// defect here as it.fails.
+// Known defects found by a review of the code on 2026-11-07. Each test
+// asserts the CORRECT behaviour. While a bug existed its test was marked
+// it.fails; the fix commit flipped it to `it`, so all of them now guard
+// against a regression. Test names start with the review's id for the
+// defect. Add a new known defect here as it.fails.
 
 const PUBLICATIONS = ORBITALS.find(o => o.id === 'publications')!;
 
@@ -69,7 +68,7 @@ describe('OrbitalRing known bugs', () => {
   });
 });
 
-describe('CloudLayer (now a GLB consumer, decision D3)', () => {
+describe('CloudLayer (now a GLB consumer)', () => {
   // The landing page reads cloud-designer's binary glTF instead of its preset
   // JSON, so these three are rewritten against loadCloudLayer and CloudLayer.
 

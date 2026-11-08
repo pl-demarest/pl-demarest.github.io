@@ -2,9 +2,9 @@
  * CloudLayer: wireframe clouds drifting across the bottom of the scene.
  *
  * The geometry comes from a binary glTF (GLB) file exported by
- * cloud-designer (decision D3 of the 2026-11 refactor plan): every line
- * primitive in the file is merged into one edge buffer with its transform
- * applied. LINES primitives (THREE.LineSegments) go in as they are; LINE_STRIP
+ * cloud-designer, so the page draws what the designer previews, through a
+ * standard file format: every line primitive in the file is merged into
+ * one edge buffer with its transform applied. LINES primitives (THREE.LineSegments) go in as they are; LINE_STRIP
  * and LINE_LOOP primitives (THREE.Line, THREE.LineLoop), such as the flow
  * lines in cloud-designer's wireframe exports, are converted to segment
  * pairs. Each cloud instance draws that buffer as THREE.LineSegments with

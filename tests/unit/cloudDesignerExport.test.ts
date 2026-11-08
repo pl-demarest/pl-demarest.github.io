@@ -8,8 +8,8 @@ import { describe, expect, it } from 'vitest';
 import { loadCloudLayer } from '../../src/scene/CloudLayer';
 import { glbDataUrl, readGlbJson, type GltfJson } from './helpers/glb';
 
-// The contract with cloud-designer (decision D23): files cloud-designer
-// exported on its default preset, kept with their provenance in
+// The contract with cloud-designer: files cloud-designer exported on its
+// default preset, kept with their provenance in
 // tests/fixtures/cloud-designer/ (README.md there; export-glb.ts writes
 // them again), load through loadCloudLayer as the page would load them.
 
