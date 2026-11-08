@@ -129,8 +129,12 @@ test('a drag across the panel does not hover its categories', async ({ page }) =
     await page.mouse.move(start.x + ((name.x - start.x) * i) / 8, start.y + ((name.y - start.y) * i) / 8);
   }
   await expect(page.locator('#scene')).toHaveCSS('cursor', 'grabbing');
-  await expect(category(page, 'publications')).not.toHaveClass(/\bhovered\b/);
+  // The scene's hover of the dragged ring is the only one. A panel that read
+  // the drag's moves took the hover on the way: Experiences once a move
+  // crossed its name, Publications if the last move landed on that name
+  // before the Experiences list, expanding in real time, moved it.
   await expect(page.locator('.ip-category.hovered')).toHaveCount(1);
+  await expect(category(page, 'projects')).toHaveClass(/\bhovered\b/);
 
   // After the release the panel hovers under the pointer again.
   await page.mouse.up();
