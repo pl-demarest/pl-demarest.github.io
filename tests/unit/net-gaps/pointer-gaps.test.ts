@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InteractionManager } from '../../../src/scene/InteractionManager';
 import { OrbitalRing } from '../../../src/scene/OrbitalRing';
+import { DESKTOP_CAMERA } from '../../../src/scene/SceneManager';
 import { ORBITALS } from '../../../src/scene/config';
 import { DT_60HZ, step } from '../helpers/sim';
 
@@ -12,8 +13,8 @@ import { DT_60HZ, step } from '../helpers/sim';
 // other rings were unpinned.
 
 function setup() {
-  const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-  camera.position.set(0, 5.5, 8);
+  const camera = new THREE.PerspectiveCamera(DESKTOP_CAMERA.fov, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(...DESKTOP_CAMERA.position);
   camera.lookAt(0, 0, 0);
   camera.updateMatrixWorld();
   const rings = ORBITALS.map(cfg => new OrbitalRing(cfg));

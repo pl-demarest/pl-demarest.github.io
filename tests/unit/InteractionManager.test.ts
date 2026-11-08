@@ -6,6 +6,7 @@ import { Store } from '../../src/app/store';
 import { InteractionManager, type PickTarget } from '../../src/scene/InteractionManager';
 import { OrbitalRing } from '../../src/scene/OrbitalRing';
 import type { OrbitalNode } from '../../src/scene/OrbitalNode';
+import { DESKTOP_CAMERA } from '../../src/scene/SceneManager';
 import { ORBITALS } from '../../src/scene/config';
 import { step } from './helpers/sim';
 
@@ -36,9 +37,9 @@ interface Rig {
 }
 
 function buildRig(box: Box = { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }): Rig {
-  // Same camera as SceneManager's desktop layout.
-  const camera = new THREE.PerspectiveCamera(45, box.width / box.height, 0.1, 100);
-  camera.position.set(0, 5.5, 8);
+  // SceneManager's desktop camera.
+  const camera = new THREE.PerspectiveCamera(DESKTOP_CAMERA.fov, box.width / box.height, 0.1, 100);
+  camera.position.set(...DESKTOP_CAMERA.position);
   camera.lookAt(0, 0, 0);
   camera.updateMatrixWorld();
 
