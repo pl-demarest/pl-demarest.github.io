@@ -99,7 +99,7 @@ function checkAction(
     case 'route':
       return isSitePath(action.path)
         ? []
-        : [`${where} route action needs a path that starts with "/", got "${action.path}"`];
+        : [`${where} route action needs a path on this site, starting with "/", got "${action.path}"`];
     case 'suborbital':
       if (action.sectionId === ownSection) return [`${where} suborbital action points at its own section`];
       return sectionIds.has(action.sectionId)
@@ -117,7 +117,7 @@ function checkLink(link: Link, where: string): string[] {
   const problems: string[] = [];
   if (link.label.trim() === '') problems.push(`${where} has a link with an empty label`);
   if (!isHttpUrl(link.href) && !isSitePath(link.href)) {
-    problems.push(`${where} link "${link.label}" needs an absolute http(s) URL or a path that starts with "/"`);
+    problems.push(`${where} link "${link.label}" needs an absolute http(s) URL or a path on this site, starting with "/"`);
   }
   return problems;
 }
@@ -131,6 +131,19 @@ function isHttpUrl(href: string): boolean {
   }
 }
 
+/** A placeholder origin: what matters is whether a path stays on it. */
+const SITE = 'https://site.invalid';
+
+/**
+ * A root-relative path that a browser resolves on this site. URL parsing
+ * reads a backslash as a slash and drops tabs and newlines, so a path such
+ * as '/\\evil.example' or '/\t/evil.example' leaves the site, as '//evil.example' does.
+ */
 function isSitePath(path: string): boolean {
-  return path.startsWith('/') && !path.startsWith('//');
+  if (!path.startsWith('/')) return false;
+  try {
+    return new URL(path, SITE).origin === SITE;
+  } catch {
+    return false;
+  }
 }

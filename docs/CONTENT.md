@@ -40,7 +40,7 @@ Add a `SiteNode` to its section's `nodes` and its angle to that section's `nodeA
 
 ## Add a link
 
-`links` is an optional list of `{ label, href }` on a node. `href` is an absolute `http(s)` URL or a path on this site that starts with `/` (not `//`). Links are data only so far: nothing renders them, and Phase 2 decides where they appear. Keep URLs out of `description`; `content.test.ts` checks that descriptions hold no `http:`, `https:` or `/public/` text.
+`links` is an optional list of `{ label, href }` on a node. `href` is an absolute `http(s)` URL or a path on this site that starts with `/` (not `//`, and not a path a browser reads as another site, such as `/\evil.example`). Links are data only so far: nothing renders them, and Phase 2 decides where they appear. Keep URLs out of `description`; `content.test.ts` checks that descriptions hold no `http:`, `https:` or `/public/` text.
 
 ## Node actions
 
@@ -91,8 +91,8 @@ With `prefers-reduced-motion`, rings do not turn on their own and the flat view 
 - Every section has a layout, and every layout belongs to a section.
 - `radiusX`, `radiusY`, `tilt.x`, `tilt.z`, `speed` and `couplingFactor` are finite numbers.
 - Every node has a finite angle in its section's `nodeAngles`, and `nodeAngles` names no other node.
-- Actions: `external` needs an absolute `http(s)` URL; `route` a path that starts with `/` and not `//`; `suborbital` an existing section other than its own; any other kind is reported.
-- Links: a non-empty label, and an `href` that is an absolute `http(s)` URL or a path that starts with `/`.
+- Actions: `external` needs an absolute `http(s)` URL; `route` a path that starts with `/` and that a browser resolves on this site (not `//evil.example`, `/\evil.example` or a path with a tab or newline in it); `suborbital` an existing section other than its own; any other kind is reported.
+- Links: a non-empty label, and an `href` that is an absolute `http(s)` URL or a path on this site, as for `route`.
 
 It does not check signs or sizes. `config.test.ts` checks that radii and coupling factors are positive, that no speed is zero (a negative speed is allowed), and that the rings are ordered inside out, and it pins today's section and node labels.
 

@@ -105,8 +105,8 @@ describe('validateContent', () => {
     const cases: Array<[NodeAction, string]> = [
       [{ kind: 'external', href: '/relative' }, 'node "papers" external action needs an absolute http(s) URL, got "/relative"'],
       [{ kind: 'external', href: 'javascript:alert(1)' }, 'node "papers" external action needs an absolute http(s) URL, got "javascript:alert(1)"'],
-      [{ kind: 'route', path: 'projects' }, 'node "papers" route action needs a path that starts with "/", got "projects"'],
-      [{ kind: 'route', path: '//evil.example' }, 'node "papers" route action needs a path that starts with "/", got "//evil.example"'],
+      [{ kind: 'route', path: 'projects' }, 'node "papers" route action needs a path on this site, starting with "/", got "projects"'],
+      [{ kind: 'route', path: '//evil.example' }, 'node "papers" route action needs a path on this site, starting with "/", got "//evil.example"'],
       [{ kind: 'suborbital', sectionId: 'nowhere' }, 'node "papers" suborbital action names unknown section "nowhere"'],
       [{ kind: 'suborbital', sectionId: 'publications' }, 'node "papers" suborbital action points at its own section'],
       [{ kind: 'teleport' } as unknown as NodeAction, 'node "papers" has an unknown action {"kind":"teleport"}'],
@@ -118,6 +118,23 @@ describe('validateContent', () => {
     }
   });
 
+  it('reports a route or link path that a browser resolves to another site', () => {
+    // URL parsing reads a backslash as a slash and drops tabs and newlines,
+    // so each of these becomes //evil.example/...
+    for (const path of ['/\\evil.example/x', '/\t/evil.example/x', '/\n/evil.example']) {
+      const { sections, layout } = copy();
+      sections[0]!.nodes[0]!.action = { kind: 'route', path };
+      sections[2]!.nodes[1]!.links = [{ label: 'Elsewhere', href: path }];
+      expect(validateContent(sections, layout), JSON.stringify(path)).toEqual([
+        `node "papers" route action needs a path on this site, starting with "/", got "${path}"`,
+        'node "code" link "Elsewhere" needs an absolute http(s) URL or a path on this site, starting with "/"',
+      ]);
+    }
+    const { sections, layout } = copy();
+    sections[0]!.nodes[0]!.action = { kind: 'route', path: '/talks/2026?x=1#y' };
+    expect(validateContent(sections, layout)).toEqual([]);
+  });
+
   it('reports links without a label or with an unusable href', () => {
     const { sections, layout } = copy();
     sections[2]!.nodes[1]!.links = [
@@ -126,7 +143,7 @@ describe('validateContent', () => {
     ];
     expect(validateContent(sections, layout)).toEqual([
       'node "code" has a link with an empty label',
-      'node "code" link "Repo" needs an absolute http(s) URL or a path that starts with "/"',
+      'node "code" link "Repo" needs an absolute http(s) URL or a path on this site, starting with "/"',
     ]);
   });
 
