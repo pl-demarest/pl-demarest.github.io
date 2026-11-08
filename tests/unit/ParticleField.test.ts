@@ -106,6 +106,26 @@ describe('ParticleField (Math.random seeded)', () => {
     expect((field.backgroundGroup.geometry.getAttribute('position') as BufferAttribute).version).toBeGreaterThan(0);
   });
 
+  it('drifts up to driftSpeed / 2 per 60 Hz frame on an axis, and 0.75 x driftSpeed in the foreground', () => {
+    // The range config.ts documents for driftSpeed.
+    const field = new ParticleField();
+    const layers = [field.backgroundGroup, field.foregroundGroup];
+    const before = layers.map(points => Float32Array.from(positions(points)));
+    field.update(1 / 60);
+    const fastest = layers.map((points, l) => {
+      let max = 0;
+      positions(points).forEach((v, i) => {
+        if (i % 3 !== 2) max = Math.max(max, Math.abs(wrap(v - before[l]![i]!)));
+      });
+      return max;
+    });
+    // Float32 positions round each step by up to about 1e-6.
+    expect(fastest[0]).toBeLessThanOrEqual(driftSpeed / 2 + 1e-6);
+    expect(fastest[0]).toBeGreaterThan(0.9 * (driftSpeed / 2));
+    expect(fastest[1]).toBeLessThanOrEqual(0.75 * driftSpeed + 1e-6);
+    expect(fastest[1]).toBeGreaterThan(0.9 * 0.75 * driftSpeed);
+  });
+
   it('wraps particles that leave the [-spread/2, spread/2] band', () => {
     const field = new ParticleField();
     const arr = positions(field.backgroundGroup);

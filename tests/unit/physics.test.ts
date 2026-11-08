@@ -146,8 +146,8 @@ describe('frame-rate independence (acceptance: within 2 % of 60 Hz after 1 s)', 
 
     for (const hz of RATES) {
       expect(rel(after(hz, 1 / 6, node, (n, dt) => n.update(dt), scale), nodeReference)).toBeLessThan(1e-9);
-      // Positions are float32, so each step rounds; 4 digits is 1/1000 of a
-      // second's largest drift (0.12 units).
+      // Positions are float32, so each step rounds; 4 digits (5e-5 units) is
+      // under 1/1000 of a second's largest drift on one axis (0.09 units).
       const got = after(hz, 1, field, (f, dt) => f.update(dt), positions);
       got.forEach((value, i) => expect(value, `particle coordinate ${i} at ${hz} Hz`).toBeCloseTo(fieldReference[i]!, 4));
     }
