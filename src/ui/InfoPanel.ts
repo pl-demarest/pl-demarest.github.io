@@ -36,6 +36,10 @@ export class InfoPanel {
   private readonly unsubscribe: Unsubscribe;
   /** Set by selectRingFromScene: the document click that follows is not an outside click. */
   private suppressNextOutsideClick = false;
+  /** Cached rects; null until measured and after anything that moves them. */
+  private layout: Layout | null = null;
+  /** CSS transitions running inside the panel; rects are read live while any run. */
+  private runningTransitions = 0;
 
   constructor(root: HTMLElement, sections: readonly Section[], store: Store) {
     this.root = root;
@@ -46,10 +50,18 @@ export class InfoPanel {
 
     document.addEventListener('pointermove', this.onDocumentPointerMove, { passive: true, signal });
     document.addEventListener('click', this.onDocumentClick, { signal });
+    window.addEventListener('resize', this.invalidateLayout, { signal });
+    window.addEventListener('scroll', this.invalidateLayout, { capture: true, passive: true, signal });
+    root.addEventListener('transitionrun', this.onTransitionRun, { signal });
+    root.addEventListener('transitionend', this.onTransitionDone, { signal });
+    root.addEventListener('transitioncancel', this.onTransitionDone, { signal });
 
     this.unsubscribe = store.subscribe(
       state => state,
-      state => this.render(state),
+      state => {
+        this.render(state);
+        this.invalidateLayout();
+      },
     );
     this.render(store.getState());
   }
@@ -61,6 +73,7 @@ export class InfoPanel {
     this.categories.length = 0;
     this.nodeElements.clear();
     this.suppressNextOutsideClick = false;
+    this.layout = null;
   }
 
   /**
@@ -115,10 +128,25 @@ export class InfoPanel {
   }
 
   private measure(): Layout {
+    if (this.layout && this.runningTransitions === 0) return this.layout;
     const names = new Map<string, DOMRect>();
     for (const category of this.categories) names.set(category.id, category.name.getBoundingClientRect());
-    return { panel: this.root.getBoundingClientRect(), names };
+    this.layout = { panel: this.root.getBoundingClientRect(), names };
+    return this.layout;
   }
+
+  private readonly invalidateLayout = (): void => {
+    this.layout = null;
+  };
+
+  private readonly onTransitionRun = (): void => {
+    this.runningTransitions++;
+  };
+
+  private readonly onTransitionDone = (): void => {
+    this.runningTransitions = Math.max(0, this.runningTransitions - 1);
+    this.invalidateLayout();
+  };
 
   private readonly onDocumentPointerMove = (e: PointerEvent): void => {
     const { panel, names } = this.measure();

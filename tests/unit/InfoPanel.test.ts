@@ -199,6 +199,30 @@ describe('InfoPanel', () => {
     expect(hovered(ctx.root)).toEqual([]);
   });
 
+  it('reads the rects once, and again only after a resize, a scroll or a change of expansion', () => {
+    const panelRect = vi.spyOn(ctx.root, 'getBoundingClientRect').mockReturnValue(rect(900, 300, 100, 90));
+    const nameRects = ORBITALS.map((o, i) =>
+      vi.spyOn(nameElement(ctx.root, o.id), 'getBoundingClientRect').mockReturnValue(rect(940, 300 + i * 30, 60, 20)),
+    );
+    const reads = () => [panelRect, ...nameRects].map(spy => spy.mock.calls.length);
+
+    move(100, 100);
+    move(120, 100);
+    move(140, 100);
+    expect(reads()).toEqual([1, 1, 1, 1]);
+
+    move(860, 342); // hovers experiences: the layout is about to change
+    move(905, 345); // the hovered name again: re-measured once
+    move(910, 345);
+    expect(reads()).toEqual([2, 2, 2, 2]);
+
+    window.dispatchEvent(new Event('resize'));
+    move(910, 345);
+    window.dispatchEvent(new Event('scroll'));
+    move(910, 345);
+    expect(reads()).toEqual([4, 4, 4, 4]);
+  });
+
   it('dispose() removes its elements and stops listening', () => {
     ctx.panel.dispose();
     expect(ctx.root.children).toHaveLength(0);
