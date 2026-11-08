@@ -52,11 +52,11 @@ tests/
 
 ## Interaction model
 
-- Moving the pointer near the panel, or keyboard focus, expands a section. A click, Enter or Space selects it and lays its ring flat; Escape or a click outside the panel and the scene clears the selection. A pointer on the selected section, or nearest its name, expands no other section, so the panel holds still under it.
-- Hovering a ring or a node in the scene expands its section in the panel and highlights the node's entry. Clicking a ring or node selects its section; a click on empty canvas clears the selection.
+- Moving the pointer near the panel, or keyboard focus, expands a section. A click, Enter or Space selects it and lays its ring flat, and a second one deselects it; Escape or a click outside the panel and the scene clears the selection. A pointer on the selected section, or nearest its name, expands no other section, so the panel holds still under it.
+- Hovering a ring or a node in the scene expands its section in the panel and highlights the node's entry, also while the scene moves under a resting pointer. Clicking a ring or node selects its section and a second click deselects it; a click on empty canvas clears the selection. A drag is never a click, even one that ends where it began.
 - Dragging a ring spins it at the pointer's speed and tilts it; the other rings follow, scaled by their `couplingFactor`. Spin and tilt decay under friction. A selected (flat) ring spins only when dragged directly and coasts to rest.
 - Each ring cruises at its layout `speed`, in rad/s. Motion is frame-rate independent.
-- With `prefers-reduced-motion`, rings and particles move only when dragged and transitions are short.
+- With `prefers-reduced-motion`, rings move only when dragged, particles stay still, and transitions are short.
 - Without WebGL, the header and the panel still work and a short notice replaces the scene.
 
 ## Content
