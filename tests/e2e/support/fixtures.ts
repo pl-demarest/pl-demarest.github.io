@@ -25,8 +25,11 @@ export const SCENE_FRAME_MS = 1000 / 60;
  *   then has dt = 1/60 s, the step the unit-test characterization uses,
  *   and the paused clock's varying start offset (1-7 ms measured) cannot
  *   change the first frame's dt.
- * - Math.random is replaced by mulberry32(SEED), so the particle field and
- *   three.js UUIDs are identical on every load.
+ * - The particle layout draws from its own mulberry32(SEED) stream, which
+ *   App takes from window.__PARTICLE_RANDOM__. Math.random is replaced by
+ *   another mulberry32(SEED), so three.js UUIDs are identical on every
+ *   load too, and adding scene objects (each draws a UUID) does not move
+ *   the particles.
  *
  * After loading, the scene runs for `settleMs` of fake time.
  */
@@ -39,14 +42,18 @@ export async function openScene(page: Page, settleMs = 2000): Promise<void> {
       const fakeNow = performance.now.bind(performance);
       performance.now = () => Math.floor(fakeNow() / frameMs) * sceneFrameMs;
 
-      let a = seed >>> 0;
-      Math.random = () => {
-        a = (a + 0x6d2b79f5) >>> 0;
-        let t = a;
-        t = Math.imul(t ^ (t >>> 15), t | 1);
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      const mulberry32 = (s: number) => {
+        let a = s >>> 0;
+        return () => {
+          a = (a + 0x6d2b79f5) >>> 0;
+          let t = a;
+          t = Math.imul(t ^ (t >>> 15), t | 1);
+          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
       };
+      Math.random = mulberry32(seed);
+      window.__PARTICLE_RANDOM__ = mulberry32(seed);
     },
     { seed: SEED, frameMs: FRAME_MS, sceneFrameMs: SCENE_FRAME_MS },
   );

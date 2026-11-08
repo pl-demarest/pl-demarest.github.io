@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { PARTICLE_CONFIG } from './config';
 import { TUNED_HZ } from './physics';
 
+/** A source of uniform random numbers in [0, 1), as Math.random is. */
+export type RandomSource = () => number;
+
 export class ParticleField {
   readonly backgroundGroup: THREE.Points;
   readonly foregroundGroup: THREE.Points;
@@ -12,20 +15,28 @@ export class ParticleField {
   /** False under prefers-reduced-motion. */
   private drifting = true;
 
-  constructor() {
+  /**
+   * Lays both layers out from `random`: the background takes the first
+   * 5 x backgroundCount draws, the foreground the next 5 x foregroundCount.
+   * The app passes Math.random; tests pass a seeded source, so the layout
+   * does not depend on what else drew from Math.random (three.js draws from
+   * it for every object's UUID).
+   */
+  constructor(random: RandomSource = Math.random) {
     const { backgroundCount, foregroundCount, backgroundDepthRange, foregroundDepthRange, spread, driftSpeed } =
       PARTICLE_CONFIG;
 
-    const bgResult = ParticleField.createLayer(backgroundCount, spread, backgroundDepthRange, driftSpeed, 0.6);
+    const bgResult = ParticleField.createLayer(random, backgroundCount, spread, backgroundDepthRange, driftSpeed, 0.6);
     this.backgroundGroup = bgResult.points;
     this.bgVelocities = bgResult.velocities;
 
-    const fgResult = ParticleField.createLayer(foregroundCount, spread, foregroundDepthRange, driftSpeed * 1.5, 0.25);
+    const fgResult = ParticleField.createLayer(random, foregroundCount, spread, foregroundDepthRange, driftSpeed * 1.5, 0.25);
     this.foregroundGroup = fgResult.points;
     this.fgVelocities = fgResult.velocities;
   }
 
   private static createLayer(
+    random: RandomSource,
     count: number,
     spread: number,
     depthRange: [number, number],
@@ -37,12 +48,12 @@ export class ParticleField {
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
-      positions[i3] = (Math.random() - 0.5) * spread;
-      positions[i3 + 1] = (Math.random() - 0.5) * spread;
-      positions[i3 + 2] = depthRange[0] + Math.random() * (depthRange[1] - depthRange[0]);
+      positions[i3] = (random() - 0.5) * spread;
+      positions[i3 + 1] = (random() - 0.5) * spread;
+      positions[i3 + 2] = depthRange[0] + random() * (depthRange[1] - depthRange[0]);
 
-      velocities[i3] = (Math.random() - 0.5) * speed;
-      velocities[i3 + 1] = (Math.random() - 0.5) * speed;
+      velocities[i3] = (random() - 0.5) * speed;
+      velocities[i3 + 1] = (random() - 0.5) * speed;
       velocities[i3 + 2] = 0;
     }
 

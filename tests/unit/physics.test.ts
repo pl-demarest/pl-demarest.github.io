@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { OrbitalNode } from '../../src/scene/OrbitalNode';
 import { OrbitalRing } from '../../src/scene/OrbitalRing';
 import { ParticleField } from '../../src/scene/ParticleField';
@@ -132,12 +132,7 @@ describe('frame-rate independence (acceptance: within 2 % of 60 Hz after 1 s)', 
     const nodeReference = after(60, 1 / 6, node, (n, dt) => n.update(dt), scale);
 
     // The same seeded layout for every rate.
-    const field = () => {
-      vi.spyOn(Math, 'random').mockImplementation(mulberry32(7));
-      const f = new ParticleField();
-      vi.restoreAllMocks();
-      return f;
-    };
+    const field = () => new ParticleField(mulberry32(7));
     const positions = (f: ParticleField) => [
       ...f.backgroundGroup.geometry.getAttribute('position').array,
       ...f.foregroundGroup.geometry.getAttribute('position').array,

@@ -13,6 +13,17 @@ import { Store } from './store';
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
+declare global {
+  interface Window {
+    /**
+     * Test seam: the browser suite (tests/e2e/support/fixtures.ts) puts a
+     * seeded random source here for the particle layout. Unset for
+     * visitors, whose particles come from Math.random.
+     */
+    __PARTICLE_RANDOM__?: () => number;
+  }
+}
+
 /**
  * Composition root. The header and the panel come up first and work on
  * their own; the WebGL scene is added when the browser can create it. Scene
@@ -63,16 +74,13 @@ export class App {
       return false;
     }
 
-    // Object creation order is part of the browser suite's contract: three.js
-    // draws UUIDs from Math.random, which the suite seeds, so creating
-    // objects in another order moves the particle layout.
     const rings = ORBITALS.map(cfg => {
       const ring = new OrbitalRing(cfg);
       sm.scene.add(ring.group);
       return ring;
     });
 
-    const particles = new ParticleField();
+    const particles = new ParticleField(window.__PARTICLE_RANDOM__ ?? Math.random);
     sm.scene.add(particles.backgroundGroup);
     sm.scene.add(particles.foregroundGroup);
 
