@@ -42,12 +42,18 @@ test('hovering near a category name expands its nodes', async ({ page }) => {
   await page.mouse.move(box.x - 25, box.y + box.height / 2);
   await expect(category(page, 'experiences')).toHaveClass(/\bhovered\b/);
   const nodes = category(page, 'experiences').locator('.ip-nodes');
-  await expect.poll(() => nodes.evaluate(el => el.getBoundingClientRect().height)).toBeGreaterThan(20);
+  // The list's height inside its padding (the room a focus ring needs).
+  const shown = () =>
+    nodes.evaluate(el => {
+      const style = getComputedStyle(el);
+      return el.getBoundingClientRect().height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+    });
+  await expect.poll(shown).toBeGreaterThan(20);
   await expect(page.locator('.ip-category.hovered')).toHaveCount(1);
 
   await page.mouse.move(EMPTY.x, EMPTY.y);
   await expect(page.locator('.ip-category.hovered')).toHaveCount(0);
-  await expect.poll(() => nodes.evaluate(el => el.getBoundingClientRect().height)).toBe(0);
+  await expect.poll(shown).toBe(0);
 });
 
 test('a mouse that leaves the window from the panel leaves no category open', async ({ page }) => {

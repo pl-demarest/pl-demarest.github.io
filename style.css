@@ -154,11 +154,16 @@ html, body {
 .ip-nodes {
   max-height: 0;
   overflow: hidden;
+  /* The overflow clip would cut the ring of a focused node (1px, 2px
+     outside the button, which spans the list): the padding makes room for
+     it, and the equal negative margin keeps every node where it was. */
+  padding: 3px;
+  margin: -3px;
   transition: max-height 0.35s ease, opacity 0.3s ease;
   opacity: 0;
-  /* A collapsed list lets the pointer through. On mobile it keeps its
-     padding, a transparent box above the bar that would otherwise take
-     taps meant for the scene or for the open list below it. */
+  /* A collapsed list lets the pointer through. It keeps its padding, on
+     mobile a transparent box above the bar that would otherwise take taps
+     meant for the scene or for the open list below it. */
   pointer-events: none;
 }
 
@@ -239,6 +244,7 @@ html, body {
     text-align: center;
     background: rgba(255, 255, 255, 0.92);
     padding: 0.6rem 1rem;
+    margin: 0;
   }
 
   .ip-category.hovered .ip-nodes,
