@@ -46,6 +46,7 @@ docs/
 tests/
   unit/                    Vitest (Node and happy-dom)
   e2e/                     Playwright: desktop, mobile, keyboard, resilience; darwin screenshot baselines
+  fixtures/cloud-designer/ GLB files exported from cloud-designer, with their provenance and export script
 ```
 
 ## Interaction model

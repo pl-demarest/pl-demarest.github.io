@@ -76,3 +76,20 @@ export function buildLinesGlb(
 export function glbDataUrl(glb: ArrayBuffer): string {
   return `data:model/gltf-binary;base64,${Buffer.from(glb).toString('base64')}`;
 }
+
+/** The parts of a glTF file's JSON that the fixture tests read. */
+export interface GltfJson {
+  scene?: number;
+  scenes: Array<{ nodes?: number[] }>;
+  nodes: Array<{ name?: string; mesh?: number; children?: number[] }>;
+  meshes: Array<{ primitives: Array<{ attributes: { POSITION: number }; indices?: number; mode?: number }> }>;
+  accessors: Array<{ count: number; min?: number[]; max?: number[] }>;
+}
+
+/** The JSON chunk of a GLB file. */
+export function readGlbJson(glb: ArrayBuffer): GltfJson {
+  const view = new DataView(glb);
+  if (view.getUint32(0, true) !== 0x46546c67) throw new Error('not a GLB file');
+  const jsonLength = view.getUint32(12, true);
+  return JSON.parse(new TextDecoder().decode(new Uint8Array(glb, 20, jsonLength))) as GltfJson;
+}
