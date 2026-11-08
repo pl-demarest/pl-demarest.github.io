@@ -112,6 +112,15 @@ export class InteractionManager {
     this.canvas.style.cursor = '';
   }
 
+  /**
+   * Report the current hover target to onHover again, changed or not. A
+   * listener that set a report aside (the store drops a hover of the
+   * selected ring) gets it back once the reason is gone.
+   */
+  reportHover(): void {
+    this.handlers.onHover?.(this.hovered);
+  }
+
   /** Replace the pickable rings; rebuilds the pick lists. */
   setRings(rings: OrbitalRing[]): void {
     this.rings = rings;

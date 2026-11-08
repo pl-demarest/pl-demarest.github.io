@@ -95,6 +95,13 @@ export class App {
     });
     interaction.setRings(rings);
     const unbind = bindScene(this.store, rings);
+    // The store drops the scene's hover of the selected ring, and the scene
+    // reports a hover only when its target changes: a ring deselected under
+    // a still pointer gets its hover back here.
+    const unwatchSelection = this.store.subscribe(
+      state => state.selectedRingId,
+      () => interaction.reportHover(),
+    );
 
     sm.onTick(dt => {
       for (const ring of rings) ring.update(dt);
@@ -116,6 +123,7 @@ export class App {
 
     this.disposers.push(() => {
       unbind();
+      unwatchSelection();
       interaction.dispose();
       for (const ring of rings) ring.dispose();
       disposeNodeGeometry();

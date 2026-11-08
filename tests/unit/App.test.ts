@@ -1,10 +1,13 @@
 // @vitest-environment happy-dom
 import type { Window as HappyWindow } from 'happy-dom';
+import * as THREE from 'three';
 import type * as ThreeModule from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../../src/app/App';
 import { SECTIONS } from '../../src/content/site';
 import { OrbitalNode } from '../../src/scene/OrbitalNode';
+import { OrbitalRing } from '../../src/scene/OrbitalRing';
+import { cameraPresetFor } from '../../src/scene/SceneManager';
 import { ORBITALS } from '../../src/scene/config';
 
 // happy-dom has no WebGL, so the renderer is stubbed; everything else is
@@ -14,6 +17,7 @@ const renderer = vi.hoisted(() => ({
   fail: false,
   loop: null as ((time: number) => void) | null,
   scene: null as ThreeModule.Scene | null,
+  camera: null as ThreeModule.Camera | null,
   loopCalls: [] as Array<unknown>,
   disposed: 0,
 }));
@@ -30,8 +34,9 @@ vi.mock('three', async importOriginal => {
       renderer.loopCalls.push(loop);
       renderer.loop = loop;
     }
-    render(scene: ThreeModule.Scene): void {
+    render(scene: ThreeModule.Scene, camera: ThreeModule.Camera): void {
       renderer.scene = scene;
+      renderer.camera = camera;
     }
     dispose(): void {
       renderer.disposed++;
@@ -63,6 +68,33 @@ function runFrames(frames: number): number[] {
   return positions;
 }
 
+/**
+ * A client point on ring `id`'s pick tube, clear of every node, as the
+ * app's camera shows the scene in a `width` x `height` window before its
+ * rings turn: the tube depends only on the ring's tilt.
+ */
+function ringPoint(id: string, width: number, height: number): { x: number; y: number } {
+  const preset = cameraPresetFor(width);
+  const camera = new THREE.PerspectiveCamera(preset.fov, width / height, 0.1, 100);
+  camera.position.set(...preset.position);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld();
+  const ring = new OrbitalRing(ORBITALS.find(o => o.id === id)!);
+  ring.group.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster();
+  for (let k = 0; k < 64; k++) {
+    const t = (k / 64) * Math.PI * 2;
+    const world = ring.group.localToWorld(new THREE.Vector3(Math.cos(t) * ring.config.radiusX, 0, Math.sin(t) * ring.config.radiusY));
+    const ndc = world.project(camera);
+    ray.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), camera);
+    // Nodes sit at the ring's centre until the first frame places them.
+    if (ray.intersectObject(ring.hitMesh, false).length > 0 && Math.hypot(ndc.x, ndc.y) > 0.2) {
+      return { x: ((ndc.x + 1) / 2) * width, y: ((1 - ndc.y) / 2) * height };
+    }
+  }
+  throw new Error(`no point on ring ${id}`);
+}
+
 describe('App', () => {
   let app: App;
 
@@ -70,6 +102,7 @@ describe('App', () => {
     renderer.fail = false;
     renderer.loop = null;
     renderer.scene = null;
+    renderer.camera = null;
     renderer.loopCalls = [];
     renderer.disposed = 0;
     document.body.innerHTML = PAGE;
@@ -98,6 +131,41 @@ describe('App', () => {
     // Clicks on the running scene's canvas are the scene's to report.
     document.getElementById('scene')!.click();
     expect(app.store.getState().selectedRingId).toBe('projects');
+  });
+
+  it('gives the scene its hover back when the ring under a still pointer is deselected', () => {
+    app = new App();
+    app.start();
+    // One frame, with the world matrices three.js's renderer would update.
+    renderer.loop?.(performance.now());
+    renderer.scene!.updateMatrixWorld(true);
+    renderer.camera!.updateMatrixWorld();
+    const canvas = document.getElementById('scene') as HTMLCanvasElement;
+    const { innerWidth: w, innerHeight: h } = window;
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, x: 0, y: 0, width: w, height: h, right: w, bottom: h } as DOMRect);
+    const p = ringPoint('projects', w, h);
+    const fire = (type: string, buttons = 0) =>
+      canvas.dispatchEvent(
+        new PointerEvent(type, { clientX: p.x, clientY: p.y, bubbles: true, pointerId: 1, pointerType: 'mouse', isPrimary: true, button: 0, buttons }),
+      );
+    const click = () => {
+      fire('pointerdown', 1);
+      fire('pointerup');
+    };
+    const hoveredByScene = { id: 'projects', source: 'scene' };
+
+    fire('pointermove');
+    expect(app.store.getState().hoveredRing).toEqual(hoveredByScene);
+    click(); // selects projects: the selected ring is never hovered
+    expect(app.store.getState()).toMatchObject({ selectedRingId: 'projects', hoveredRing: null });
+    click(); // deselects it, the pointer still on the ring
+    expect(app.store.getState()).toMatchObject({ selectedRingId: null, hoveredRing: hoveredByScene });
+    const category = document.querySelector('.ip-category[data-ring-id="projects"] .ip-category-name')!;
+    expect(category.getAttribute('aria-expanded')).toBe('true');
+
+    click();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(app.store.getState()).toMatchObject({ selectedRingId: null, hoveredRing: hoveredByScene });
   });
 
   it('dispose() stops the render loop, releases the renderer and the node geometry, and disconnects the panel', () => {
