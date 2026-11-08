@@ -134,7 +134,7 @@ Use it:
 
 1. Put the file under `public/`, for example `public/clouds/default.glb`; Vite serves it at `/clouds/default.glb`.
 2. Set `CLOUDS.asset` in `site.ts` to `'clouds/default.glb'`, and update the 'has no cloud asset yet' test.
-3. Load it in `App.createScene`, where the other scene objects are made. A sketch; App imports neither `CLOUDS` nor `loadCloudLayer` yet, and `import.meta.env` type-checks only once a `src/vite-env.d.ts` holds `/// <reference types="vite/client" />`:
+3. Load it in `App.createScene`, where the other scene objects are made. A sketch; App imports neither `CLOUDS` nor `loadCloudLayer` yet (`import.meta.env` has its types from `src/vite-env.d.ts`):
 
    ```ts
    if (CLOUDS.asset) {

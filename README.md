@@ -17,6 +17,7 @@ npm run test:e2e   # browser suite: Playwright with the installed Google Chrome
 ```
 src/
   main.ts                  Entry point: starts the App
+  vite-env.d.ts            Vite's client types (import.meta.env)
   app/
     App.ts                 Composition root: header and panel first, then the WebGL scene; dispose()
     store.ts               State shared by scene and panel: hovered ring and node (each with its source), selected ring
