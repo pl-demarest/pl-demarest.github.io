@@ -179,6 +179,10 @@ export class InteractionManager {
   private readonly onPointerDown = (e: PointerEvent): void => {
     // A second finger, or a mouse button other than the main one, is not a press.
     if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    // Another pointer's press still holds the scene (a touch during a mouse
+    // drag, or a mouse during a touch drag): this one does not end it. A
+    // press whose capture is gone (its release was lost) is over.
+    if (this.press && this.press.pointerId !== e.pointerId && this.canvas.hasPointerCapture(this.press.pointerId)) return;
     if (this.press) this.endPress();
     const target = this.pick(e.clientX, e.clientY);
     this.press = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, target, moved: false };

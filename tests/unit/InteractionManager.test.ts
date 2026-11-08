@@ -566,6 +566,31 @@ describe('InteractionManager', () => {
     expect(outer.angularVelocity).toBeCloseTo((20 * 0.008) / 0.016, 12);
   });
 
+  it("another pointer's press during a drag leaves the drag alone: a touch during a mouse drag, and the reverse", () => {
+    const [inner, , outer] = rig.rings as [OrbitalRing, OrbitalRing, OrbitalRing];
+    const p = ringPoint(rig, outer);
+    const q = ringPoint(rig, inner);
+    const touch: PointerEventInit = { pointerType: 'touch', pointerId: 2, isPrimary: true, buttons: 1 };
+    fire(rig.canvas, 'pointerdown', p, { buttons: 1 }, 1000);
+    fire(rig.canvas, 'pointermove', { x: p.x + 10, y: p.y }, HELD, 1016);
+    // A finger touches the inner ring and lifts, the mouse button still down.
+    fire(rig.canvas, 'pointerdown', q, touch, 1020);
+    fire(rig.canvas, 'pointerup', q, { ...touch, buttons: 0 }, 1030);
+    expect(rig.canvas.style.cursor).toBe('grabbing');
+    fire(rig.canvas, 'pointermove', { x: p.x + 30, y: p.y }, HELD, 1032);
+    expect(outer.angularVelocity).toBeCloseTo((20 * 0.008) / 0.016, 9);
+    expect(rig.onRingClick).not.toHaveBeenCalled();
+    fire(rig.canvas, 'pointerup', { x: p.x + 30, y: p.y });
+
+    // A finger drags the outer ring; a mouse press elsewhere waits too.
+    fire(rig.canvas, 'pointerdown', p, touch, 2000);
+    fire(rig.canvas, 'pointerdown', q, { buttons: 1 }, 2004);
+    fire(rig.canvas, 'pointerup', q, {}, 2008);
+    fire(rig.canvas, 'pointermove', { x: p.x + 20, y: p.y }, touch, 2016);
+    expect(outer.angularVelocity).toBeCloseTo((20 * 0.008) / 0.016, 9);
+    expect(rig.onRingClick).not.toHaveBeenCalled();
+  });
+
   it('a drag keeps going after the pointer leaves the canvas, until the release', () => {
     const ring = rig.rings[2]!;
     const p = ringPoint(rig, ring);
