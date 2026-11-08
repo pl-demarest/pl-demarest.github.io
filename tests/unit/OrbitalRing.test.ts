@@ -237,12 +237,6 @@ describe('OrbitalRing impulses', () => {
     expect(r.group.rotation.x).toBeCloseTo(PUBLICATIONS.tilt.x, 6);
     expect(r.group.rotation.z).toBeCloseTo(PUBLICATIONS.tilt.z, 6);
   });
-
-  it('findNodeById returns the node or undefined', () => {
-    const r = ring();
-    expect(r.findNodeById('patents')?.config.label).toBe('Patents');
-    expect(r.findNodeById('nope')).toBeUndefined();
-  });
 });
 
 describe('OrbitalRing with auto-rotation off (reduced motion)', () => {

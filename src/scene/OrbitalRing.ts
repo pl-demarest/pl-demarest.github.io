@@ -162,10 +162,6 @@ export class OrbitalRing {
     this._tiltVelocityZ += dx;
   }
 
-  findNodeById(id: string): OrbitalNode | undefined {
-    return this.nodes.find(n => n.config.id === id);
-  }
-
   /** Advance the ring by dt seconds. */
   update(dt: number): void {
     const rotation = this.group.rotation;

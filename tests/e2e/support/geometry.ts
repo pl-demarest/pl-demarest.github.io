@@ -143,7 +143,7 @@ export class SceneModel {
   /** Screen position of a node's centre; throws unless that node is the first node hit there. */
   nodePoint(nodeId: string): ScreenPoint {
     for (const ring of this.rings) {
-      const node = ring.findNodeById(nodeId);
+      const node = ring.nodes.find(n => n.config.id === nodeId);
       if (!node) continue;
       const p = this.toScreen(node.mesh.getWorldPosition(new THREE.Vector3()));
       if (this.raycast(p).node?.object !== node.mesh) throw new Error(`node ${nodeId} is occluded`);
