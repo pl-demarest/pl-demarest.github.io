@@ -146,5 +146,11 @@ describe('App', () => {
     app.start();
     const still = runFrames(1);
     expect(runFrames(30)).toEqual(still);
+
+    // Selecting a section lays its ring flat at once, then nothing moves.
+    document.querySelector<HTMLElement>('.ip-category[data-ring-id="projects"] .ip-category-name')!.click();
+    const flat = runFrames(1);
+    expect(flat).not.toEqual(still);
+    expect(runFrames(30)).toEqual(flat);
   });
 });

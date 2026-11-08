@@ -67,6 +67,17 @@ describe('OrbitalNode', () => {
     expect(colorOf(node).equals(BLACK)).toBe(true);
   });
 
+  it('with easing off, the hover scale snaps', () => {
+    const node = new OrbitalNode(CONFIG);
+    node.setEasing(false);
+    node.setHovered(true);
+    node.update(1 / 60);
+    expect(node.mesh.scale.x).toBe(1.3);
+    node.setHovered(false);
+    node.update(1 / 60);
+    expect(node.mesh.scale.x).toBe(1);
+  });
+
   it('nodes do not share a material', () => {
     const a = new OrbitalNode(CONFIG);
     const b = new OrbitalNode(CONFIG);

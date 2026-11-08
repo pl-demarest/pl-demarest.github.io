@@ -42,6 +42,8 @@ export class OrbitalRing {
   private flatMode = false;
   /** False under prefers-reduced-motion: the ring turns only when dragged. */
   private autoRotate = true;
+  /** False under prefers-reduced-motion: the flat view and node hover snap instead of easing. */
+  private easing = true;
   private targetRotX: number;
   private targetRotZ: number;
 
@@ -102,6 +104,20 @@ export class OrbitalRing {
       this.targetRotZ = this.config.tilt.z;
       this._angularVelocity = this.autoRotate ? this.returnSpeed : 0;
     }
+    if (!this.easing) {
+      this.group.rotation.x = this.targetRotX;
+      this.group.rotation.z = this.targetRotZ;
+    }
+  }
+
+  /**
+   * Ease into and out of the flat view, and ease node hover (the default), or
+   * snap to the new pose at once, as prefers-reduced-motion asks. A change
+   * already under way finishes as it started. Drag tilt eases back either way.
+   */
+  setEasing(enabled: boolean): void {
+    this.easing = enabled;
+    for (const node of this.nodes) node.setEasing(enabled);
   }
 
   /**

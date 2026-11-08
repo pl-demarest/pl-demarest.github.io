@@ -93,10 +93,14 @@ export class App {
       particles.update(dt);
     });
 
-    // Reduced motion pauses the rings' own rotation and the particle drift.
+    // Reduced motion pauses the rings' own rotation and the particle drift,
+    // and the flat view and node hover snap instead of easing.
     const motion = window.matchMedia(REDUCED_MOTION_QUERY);
     const applyMotion = (): void => {
-      for (const ring of rings) ring.setAutoRotate(!motion.matches);
+      for (const ring of rings) {
+        ring.setAutoRotate(!motion.matches);
+        ring.setEasing(!motion.matches);
+      }
       particles.setDrifting(!motion.matches);
     };
     applyMotion();

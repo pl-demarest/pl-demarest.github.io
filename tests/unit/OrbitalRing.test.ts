@@ -249,6 +249,27 @@ describe('OrbitalRing with auto-rotation off (reduced motion)', () => {
     expect(Math.abs(ringAngle(r) - rest)).toBeLessThan(1e-6);
   });
 
+  it('with easing off, the ring snaps into and out of the flat view', () => {
+    const r = ring();
+    r.setAutoRotate(false);
+    r.setEasing(false);
+    r.setFlatView(true);
+    expect(r.group.rotation.x).toBe(Math.PI / 2);
+    expect(r.group.rotation.z).toBe(0);
+    step(r, 1);
+    expect(r.group.rotation.x).toBe(Math.PI / 2);
+    r.setFlatView(false);
+    expect(r.group.rotation.x).toBe(PUBLICATIONS.tilt.x);
+    expect(r.group.rotation.z).toBe(PUBLICATIONS.tilt.z);
+    step(r, 60);
+    expect(r.group.rotation.x).toBe(PUBLICATIONS.tilt.x);
+    expect(r.group.rotation.z).toBe(PUBLICATIONS.tilt.z);
+    // A drag still tilts it, and the tilt still eases back.
+    r.addTiltVelocity(0.5, 0);
+    step(r, 1);
+    expect(r.group.rotation.z).toBeCloseTo(PUBLICATIONS.tilt.z + 0.5 * DT_60HZ, 12);
+  });
+
   it('leaving the flat view does not relaunch it; turning it back on does', () => {
     const r = ring();
     r.setAutoRotate(false);

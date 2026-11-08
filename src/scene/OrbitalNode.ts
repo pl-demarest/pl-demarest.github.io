@@ -33,6 +33,8 @@ export class OrbitalNode {
   private targetScale = 1;
   private hovered = false;
   private selected = false;
+  /** False under prefers-reduced-motion: the hover scale snaps instead of easing. */
+  private easing = true;
   private material: THREE.MeshBasicMaterial;
 
   constructor(config: NodeConfig) {
@@ -59,13 +61,18 @@ export class OrbitalNode {
     this.updateVisual();
   }
 
+  /** Ease the hover scale (the default), or snap it, as prefers-reduced-motion asks. */
+  setEasing(enabled: boolean): void {
+    this.easing = enabled;
+  }
+
   private updateVisual(): void {
     this.targetScale = this.hovered ? 1.3 : 1;
     this.material.color.copy(this.hovered || this.selected ? COLOR_HIGHLIGHT : COLOR_DEFAULT);
   }
 
   update(dt: number): void {
-    this.baseScale = lerpToward(this.baseScale, this.targetScale, SCALE_EASE, dt);
+    this.baseScale = this.easing ? lerpToward(this.baseScale, this.targetScale, SCALE_EASE, dt) : this.targetScale;
     this.mesh.scale.setScalar(this.baseScale);
   }
 

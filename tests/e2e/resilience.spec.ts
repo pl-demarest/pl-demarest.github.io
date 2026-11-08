@@ -67,6 +67,23 @@ test.describe('reduced motion', () => {
     expect(durations.split(',').map(d => d.trim())).toEqual(['0.05s']);
   });
 
+  test('selecting a section snaps its ring flat instead of animating it', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openScene(page, 160);
+    await page.locator('.ip-category[data-ring-id="projects"] .ip-category-name').click();
+    // Move off the panel, to empty canvas: the selected category's node list
+    // expands under a pointer resting on its name, and hovering a node row
+    // would change the scene by itself.
+    await page.mouse.move(60, 740);
+    await expect(page.locator('.ip-node.scene-hovered')).toHaveCount(0);
+    // Only the scene is compared: the panel and the header are masked.
+    const shot = { animations: 'disabled' as const, mask: [page.locator('#info-panel'), page.locator('#header')] };
+    await advance(page, 16);
+    const first = await page.screenshot(shot);
+    await advance(page, 992);
+    expect((await page.screenshot(shot)).equals(first)).toBe(true);
+  });
+
   test('turning it on pauses a moving scene', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await openScene(page, 160);
