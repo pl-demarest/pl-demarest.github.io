@@ -100,6 +100,27 @@ test('a press whose release never reaches the page does not keep dragging', asyn
   await expect(page.locator('.ip-node.scene-hovered')).toHaveCount(1);
 });
 
+test('a synthetic press with no active pointer behind it still presses, without a page error', async ({ page }) => {
+  // Chrome's setPointerCapture throws NotFoundError for a pointer id that
+  // has no active pointer, as for this script-made event. The failOnPageErrors
+  // fixture fails the test if that error escapes the handler.
+  const p = model.ringPoint('projects', { maxX: 900 });
+  const dispatch = (type: string, buttons: number) =>
+    page.evaluate(
+      ({ type, buttons, x, y }) => {
+        const init = { clientX: x, clientY: y, pointerId: 999, pointerType: 'mouse', isPrimary: true, button: 0, buttons };
+        document.getElementById('scene')!.dispatchEvent(new PointerEvent(type, { ...init, bubbles: true }));
+      },
+      { type, buttons, ...p },
+    );
+  await dispatch('pointerdown', 1);
+  await expect(page.locator('#scene')).toHaveCSS('cursor', 'grabbing');
+  await dispatch('pointerup', 0);
+  // A press and release in place on a ring is a click on it.
+  await expect(category(page, 'projects')).toHaveClass(/\bselected\b/);
+  await expect(page.locator('#scene')).not.toHaveCSS('cursor', 'grabbing');
+});
+
 test('a drag sends its pointer moves one 60 Hz frame apart, as a real pointer does', async ({ page }) => {
   // InteractionManager spins a dragged ring at the pointer's speed, read
   // from the event timestamps. Moves that share one timestamp read as a

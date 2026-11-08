@@ -155,9 +155,15 @@ export class InteractionManager {
     if (this.press) this.endPress();
     const target = this.pick(e.clientX, e.clientY);
     this.press = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, target };
-    this.canvas.setPointerCapture(e.pointerId);
     if (target) this.drag = { ring: target.ring, lastX: e.clientX, lastY: e.clientY, lastTime: e.timeStamp };
     this.updateCursor();
+    try {
+      this.canvas.setPointerCapture(e.pointerId);
+    } catch (error) {
+      // No active pointer has this id (a script-made event, or a pointer
+      // whose release came first): the press goes on without capture.
+      if (!(error instanceof DOMException && error.name === 'NotFoundError')) throw error;
+    }
   };
 
   private readonly onPointerMove = (e: PointerEvent): void => {

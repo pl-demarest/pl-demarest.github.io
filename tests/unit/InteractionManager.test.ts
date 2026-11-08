@@ -394,6 +394,33 @@ describe('InteractionManager', () => {
     expect(rig.canvas.hasPointerCapture(1)).toBe(false);
   });
 
+  describe('when setPointerCapture throws', () => {
+    // An exception in a listener reaches the dispatchEvent caller in this environment.
+    const failCapture = (name: string) =>
+      vi.spyOn(rig.canvas, 'setPointerCapture').mockImplementation(() => {
+        throw new DOMException('setPointerCapture failed', name);
+      });
+
+    it('a press with no active pointer behind it (NotFoundError) still drags and releases', () => {
+      // Browsers throw NotFoundError when no active pointer has the id, as for
+      // a script-made event or a pointer whose release came first.
+      failCapture('NotFoundError');
+      const ring = rig.rings[2]!;
+      const p = ringPoint(rig, ring);
+      expect(() => fire(rig.canvas, 'pointerdown', p, {}, 1000)).not.toThrow();
+      expect(rig.canvas.style.cursor).toBe('grabbing');
+      fire(rig.canvas, 'pointermove', { x: p.x + 20, y: p.y }, HELD, 1016);
+      expect(ring.angularVelocity).toBeCloseTo((20 * 0.008) / 0.016, 12);
+      fire(rig.canvas, 'pointerup', { x: p.x + 20, y: p.y });
+      expect(rig.canvas.style.cursor).not.toBe('grabbing');
+    });
+
+    it('any other capture error still surfaces', () => {
+      failCapture('InvalidStateError');
+      expect(() => fire(rig.canvas, 'pointerdown', ringPoint(rig, rig.rings[2]!))).toThrow('setPointerCapture failed');
+    });
+  });
+
   it('dragging a ring sets its spin from the pointer delta and couples the others', () => {
     const [inner, middle, outer] = rig.rings as [OrbitalRing, OrbitalRing, OrbitalRing];
     const p = ringPoint(rig, outer);
