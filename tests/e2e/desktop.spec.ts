@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { ORBITALS } from '../../src/scene/config';
-import { advance, expect, openScene, test } from './support/fixtures';
+import { SCENE_FRAME_MS, advance, drag, expect, openScene, test } from './support/fixtures';
 import { SceneModel } from './support/geometry';
 
 const VIEWPORT = { width: 1280, height: 800 };
@@ -73,10 +73,7 @@ test('dragging a ring changes the rendered scene and does not select it', async 
   const canvas = page.locator('#scene');
   const before = await canvas.screenshot();
 
-  await page.mouse.move(start.x, start.y);
-  await page.mouse.down();
-  await page.mouse.move(start.x + 120, start.y + 40, { steps: 6 });
-  await page.mouse.up();
+  await drag(page, start, { x: start.x + 120, y: start.y + 40 }, 6);
   await advance(page, 496);
 
   const after = await canvas.screenshot();
@@ -101,6 +98,25 @@ test('a press whose release never reaches the page does not keep dragging', asyn
   const node = model.nodePoint('papers');
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: node.x, y: node.y, button: 'none', buttons: 0 });
   await expect(page.locator('.ip-node.scene-hovered')).toHaveCount(1);
+});
+
+test('a drag sends its pointer moves one 60 Hz frame apart, as a real pointer does', async ({ page }) => {
+  // InteractionManager spins a dragged ring at the pointer's speed, read
+  // from the event timestamps. Moves that share one timestamp read as a
+  // burst and spin the ring 4 times too fast (MIN_EVENT_INTERVAL).
+  await page.evaluate(() => {
+    const stamps: number[] = [];
+    (window as unknown as { stamps: number[] }).stamps = stamps;
+    document.getElementById('scene')!.addEventListener('pointermove', e => {
+      if (e.buttons === 1) stamps.push(e.timeStamp);
+    });
+  });
+  const start = model.ringPoint('projects', { maxX: 900 });
+  await drag(page, start, { x: start.x + 120, y: start.y + 40 }, 6);
+  const stamps = await page.evaluate(() => (window as unknown as { stamps: number[] }).stamps);
+  expect(stamps).toHaveLength(6);
+  const intervals = stamps.slice(1).map((t, i) => t - stamps[i]!);
+  for (const interval of intervals) expect(interval).toBeCloseTo(SCENE_FRAME_MS, 6);
 });
 
 test('a still scene renders identically until time advances', async ({ page }) => {

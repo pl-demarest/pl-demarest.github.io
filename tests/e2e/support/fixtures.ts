@@ -65,6 +65,28 @@ export async function advance(page: Page, ms: number): Promise<void> {
 }
 
 /**
+ * Drag the mouse from `from` to `to` in `steps` moves with the main button
+ * held, one frame apart, as a 60 Hz pointer sends them. The fake clock
+ * holds Event.timeStamp between advance() calls, so moves sent without
+ * advancing it all carry one timestamp, and the scene reads them as a
+ * burst (it spins a dragged ring at the pointer's speed).
+ */
+export async function drag(
+  page: Page,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  steps: number,
+): Promise<void> {
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  for (let i = 1; i <= steps; i++) {
+    await advance(page, FRAME_MS);
+    await page.mouse.move(from.x + ((to.x - from.x) * i) / steps, from.y + ((to.y - from.y) * i) / steps);
+  }
+  await page.mouse.up();
+}
+
+/**
  * Every test fails if the page throws or logs a console error. Console
  * warnings are allowed (software WebGL logs "GPU stall due to ReadPixels"
  * warnings whenever a screenshot reads the canvas). A test that provokes a
