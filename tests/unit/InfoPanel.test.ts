@@ -282,6 +282,22 @@ describe('InfoPanel', () => {
       expect(hovered(ctx.root)).toEqual([]);
     });
 
+    it('a category holding keyboard focus stays expanded while pointer and scene hovers come and go', () => {
+      nodeButton(ctx.root, 'academic').focus();
+      expect(hovered(ctx.root)).toEqual(['experiences']);
+      move(500, 340); // the pointer leaves the panel zone, ending the panel hover
+      expect(hovered(ctx.root)).toEqual(['experiences']);
+      ctx.store.hoverRing('projects', 'scene');
+      expect(hovered(ctx.root)).toEqual(['experiences', 'projects']);
+      ctx.store.hoverRing(null, 'scene');
+      expect(hovered(ctx.root)).toEqual(['experiences']);
+      expect(nameButton(ctx.root, 'experiences').getAttribute('aria-expanded')).toBe('true');
+      expect(nodeButton(ctx.root, 'academic').tabIndex).toBe(0);
+      // Focus leaving the category collapses it.
+      document.querySelector<HTMLElement>('.header-link')!.focus();
+      expect(hovered(ctx.root)).toEqual([]);
+    });
+
     it('focus on a node hovers its scene node until the node loses focus', () => {
       nodeButton(ctx.root, 'patents').focus();
       expect(nodeColor(ctx.rings[0]!, 1)).toBe(HIGHLIGHT);

@@ -54,6 +54,11 @@ export class InfoPanel {
   private layout: Layout | null = null;
   /** CSS transitions running inside the panel; rects are read live while any run. */
   private runningTransitions = 0;
+  /**
+   * The category that holds keyboard focus. It stays expanded whatever the
+   * pointer and the scene hover, so a focused button never collapses.
+   */
+  private keyboardFocusId: string | null = null;
 
   constructor(root: HTMLElement, sections: readonly Section[], store: Store, options: InfoPanelOptions = {}) {
     this.root = root;
@@ -90,6 +95,7 @@ export class InfoPanel {
     this.categories.length = 0;
     this.nodeButtons.clear();
     this.layout = null;
+    this.keyboardFocusId = null;
   }
 
   private buildCategory(section: Section, signal: AbortSignal): Category {
@@ -116,13 +122,16 @@ export class InfoPanel {
     });
     root.appendChild(nodes);
 
-    // Keyboard focus anywhere in the category expands it the way hover does.
-    // Focus that follows a mouse or touch press is not :focus-visible, so a
-    // click changes the selection and nothing else.
+    // Keyboard focus anywhere in the category hovers it the way the pointer
+    // does, and keeps it expanded until focus leaves it. Focus that follows a
+    // mouse or touch press is not :focus-visible, so a click changes the
+    // selection and nothing else.
     root.addEventListener(
       'focusin',
       e => {
-        if (isKeyboardFocus(e.target)) this.store.hoverRing(section.id, 'panel');
+        if (!isKeyboardFocus(e.target)) return;
+        this.setKeyboardFocus(section.id);
+        this.store.hoverRing(section.id, 'panel');
       },
       { signal },
     );
@@ -130,6 +139,7 @@ export class InfoPanel {
       'focusout',
       e => {
         if (e.relatedTarget instanceof Node && root.contains(e.relatedTarget)) return;
+        if (this.keyboardFocusId === section.id) this.setKeyboardFocus(null);
         if (this.store.getState().hoveredRing?.id === section.id) this.store.hoverRing(null, 'panel');
       },
       { signal },
@@ -166,12 +176,20 @@ export class InfoPanel {
     return button;
   }
 
+  private setKeyboardFocus(id: string | null): void {
+    if (id === this.keyboardFocusId) return;
+    this.keyboardFocusId = id;
+    this.render(this.store.getState());
+    this.invalidateLayout();
+  }
+
   private render(state: AppState): void {
     const hoveredId = state.hoveredRing?.id ?? null;
     const sceneNodeId = state.hoveredNode?.source === 'scene' ? state.hoveredNode.id : null;
     for (const category of this.categories) {
-      const hovered = category.id === hoveredId;
       const selected = category.id === state.selectedRingId;
+      // The selected category is never hovered (see Store.hoverRing).
+      const hovered = !selected && (category.id === hoveredId || category.id === this.keyboardFocusId);
       category.root.classList.toggle('hovered', hovered);
       category.root.classList.toggle('selected', selected);
       category.name.setAttribute('aria-expanded', String(hovered || selected));

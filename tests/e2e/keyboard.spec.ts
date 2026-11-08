@@ -48,6 +48,22 @@ test('Enter and Space select, Escape clears and leaves the focused category open
   await expect(page.locator('.ip-category.selected')).toHaveCount(0);
 });
 
+test('a pointer move does not collapse the category that holds keyboard focus', async ({ page }) => {
+  await page.locator('.header-link').last().focus();
+  await page.keyboard.press('Tab'); // Publications
+  await page.keyboard.press('Tab'); // Papers
+  await expect(node(page, 'papers')).toBeFocused();
+  await expect(category(page, 'publications')).toHaveClass(/\bhovered\b/);
+
+  // The mouse moves over the scene, away from the panel: the focused node
+  // button must stay visible and in the tab order.
+  await page.mouse.move(400, 700);
+
+  await expect(node(page, 'papers')).toBeFocused();
+  await expect(category(page, 'publications')).toHaveClass(/\bhovered\b/);
+  await expect(node(page, 'papers')).toHaveAttribute('tabindex', '0');
+});
+
 test('focus that follows a mouse click does not act as a hover', async ({ page }) => {
   await name(page, 'publications').click();
   // Over the selected category's first node, the nearest other name
