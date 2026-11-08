@@ -38,13 +38,19 @@ describe('OrbitalRing construction', () => {
       expect(r.group.rotation.x).toBe(cfg.tilt.x);
       expect(r.group.rotation.z).toBe(cfg.tilt.z);
       expect(r.returnSpeed).toBe(cfg.speed / CRUISE_RATIO);
-      expect(r.returnSpeed).toBeCloseTo(LEGACY_SPEED[cfg.id]!, 15);
       expect(r.angularVelocity).toBe(r.returnSpeed);
       expect(r.isFlatMode).toBe(false);
       expect(r.nodes.map(n => n.config.id)).toEqual(cfg.nodes.map(n => n.id));
       expect(r.hitMesh.userData['ringId']).toBe(cfg.id);
       // Line, hit tube and one mesh per node.
       expect(r.group.children).toHaveLength(2 + cfg.nodes.length);
+    }
+    // The rings that had a per-frame speed: the conversion kept it. A ring
+    // added since has no entry here.
+    for (const [id, legacy] of Object.entries(LEGACY_SPEED)) {
+      const cfg = ORBITALS.find(o => o.id === id);
+      expect(cfg, id).toBeDefined();
+      expect(ring(cfg!).returnSpeed, id).toBeCloseTo(legacy, 15);
     }
   });
 
@@ -152,9 +158,11 @@ describe('OrbitalRing flat view', () => {
     expect(r.angularVelocity).toBe(0);
   });
 
-  it('settles within 38-39 frames for every ring', () => {
-    const expected: Record<string, number> = { publications: 38, experiences: 39, projects: 38 };
-    for (const cfg of ORBITALS) {
+  it('settles in the frames recorded for each of today\'s rings, and any ring within 60', () => {
+    // Recorded at 60 Hz. A ring added since settles in at most 44 frames
+    // from any tilt between -pi and pi (measured from (-pi, pi)).
+    const recorded: Record<string, number> = { publications: 38, experiences: 39, projects: 38 };
+    const settle = (cfg: OrbitalConfig) => {
       const r = ring(cfg);
       r.setFlatView(true);
       let f = 0;
@@ -162,7 +170,13 @@ describe('OrbitalRing flat view', () => {
         step(r, 1);
         f++;
       }
-      expect(f, cfg.id).toBe(expected[cfg.id]);
+      return f;
+    };
+    for (const cfg of ORBITALS) expect(settle(cfg), cfg.id).toBeLessThanOrEqual(60);
+    for (const [id, frames] of Object.entries(recorded)) {
+      const cfg = ORBITALS.find(o => o.id === id);
+      expect(cfg, id).toBeDefined();
+      expect(settle(cfg!), id).toBe(frames);
     }
   });
 
