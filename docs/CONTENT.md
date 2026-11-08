@@ -108,7 +108,7 @@ A larger ring needs new camera presets, `DESKTOP_CAMERA` and `MOBILE_CAMERA` in 
 - Every section has a layout, and every layout belongs to a section.
 - `radiusX`, `radiusY`, `tilt.x`, `tilt.z`, `speed` and `couplingFactor` are finite numbers.
 - Every node has a finite angle in its section's `nodeAngles`, and `nodeAngles` names no other node.
-- Actions: `external` needs an absolute `http(s)` URL; `route` a path that starts with `/` and that a browser resolves on this site (not `//evil.example`, `/\evil.example` or a path with a tab or newline in it); `suborbital` an existing section other than its own; any other kind is reported.
+- Actions: `external` needs an absolute `http(s)` URL; `route` a path that starts with `/` and that a browser resolves on this site, so not `//evil.example`, nor `/\evil.example` or a path whose tab or newline makes it `//evil.example` (a browser reads a backslash as a slash and drops tabs and newlines); `suborbital` an existing section other than its own; any other kind is reported.
 - Links: a non-empty label, and an `href` that is an absolute `http(s)` URL or a path on this site, as for `route`.
 
 `validateClouds(CLOUDS)` checks the cloud asset: `null`, or a path under the site root without a leading `/` that names a `.glb` file; `content.test.ts` runs it too.
