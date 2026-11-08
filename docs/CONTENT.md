@@ -55,6 +55,17 @@ Add a `SiteNode` to its section's `nodes` and its angle to that section's `nodeA
 
 Only `none` is implemented. The other kinds are typed and validated; `App.activateNode` (`src/app/App.ts`) logs a console warning that they are not implemented, and Phase 2 implements them there.
 
+## The panel and the keyboard
+
+Each section is a category in the panel: a button with the section's label, then one button per node. With the keyboard:
+
+- Tab walks the header, then each category's name followed by its nodes; Shift+Tab walks the same stops backward.
+- Focus on a name or a node expands its category, as the pointer does. Enter or Space on a name selects its section and lays its ring flat, or deselects it; on a node it activates the node (see [Node actions](#node-actions)). Escape clears the selection; with focus in a category, focus moves to its name and the category stays open.
+- A category's node buttons are in the tab order while the category holds keyboard focus or is selected. A pointer over the panel or over a ring expands a category without adding its nodes to the tab order, so where the mouse rests never changes the tab order. Shift+Tab from a category's name first adds the category before it, so focus lands on that category's last node, as Tab left it.
+- A collapsed category's node list is hidden from assistive technology, and its name reports `aria-expanded`.
+
+Every node is a stop on a full walk, so long node lists make the walk long.
+
 ## Layout values
 
 All lengths are three.js world units. The desktop camera sits at (0, 5.5, 8) with a 45 degree field of view, the mobile camera at (0, 7, 14) with 65 degrees, both looking at the origin. Today's rings measure 2.2 x 1.6, 3.2 x 2.3 and 4.2 x 3.0.

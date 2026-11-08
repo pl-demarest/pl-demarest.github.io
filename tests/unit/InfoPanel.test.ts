@@ -67,6 +67,13 @@ const hovered = (root: HTMLElement) =>
 const move = (x: number, y: number) =>
   document.dispatchEvent(new PointerEvent('pointermove', { clientX: x, clientY: y }));
 
+/** The node buttons in the tab order, by node id. */
+const tabbable = () =>
+  [...document.querySelectorAll<HTMLButtonElement>('#info-panel .ip-node')].filter(b => b.tabIndex >= 0).map(b => b.dataset['nodeId']);
+
+/** Shift+Tab's keydown; happy-dom does not move focus for it, as a browser then does. */
+const shiftTab = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+
 describe('InfoPanel', () => {
   let ctx: Ctx;
 
@@ -109,13 +116,18 @@ describe('InfoPanel', () => {
     expect(nameButton(ctx.root, 'experiences').getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('keeps the node buttons of collapsed categories out of the tab order', () => {
-    const tabbable = () =>
-      [...ctx.root.querySelectorAll<HTMLButtonElement>('.ip-node')].filter(b => b.tabIndex >= 0).map(b => b.dataset['nodeId']);
+  it('puts node buttons in the tab order only while their category is selected or holds keyboard focus', () => {
     expect(tabbable()).toEqual([]);
+    // A hover from the pointer or the scene expands a category; the tab
+    // order does not follow it.
     ctx.store.hoverRing('experiences', 'panel');
-    expect(tabbable()).toEqual(['academic', 'professional']);
+    expect(nameButton(ctx.root, 'experiences').getAttribute('aria-expanded')).toBe('true');
+    expect(tabbable()).toEqual([]);
+    ctx.store.hoverRing('projects', 'scene');
+    expect(tabbable()).toEqual([]);
     ctx.store.toggleSelection('publications');
+    expect(tabbable()).toEqual(['papers', 'patents', 'presentations']);
+    nameButton(ctx.root, 'experiences').focus(); // keyboard focus
     expect(tabbable()).toEqual(['papers', 'patents', 'presentations', 'academic', 'professional']);
   });
 
@@ -348,6 +360,29 @@ describe('InfoPanel', () => {
       // Focus leaving the category collapses it.
       document.querySelector<HTMLElement>('.header-link')!.focus();
       expect(hovered(ctx.root)).toEqual([]);
+    });
+
+    it('Shift+Tab from a category name puts the category before it in the tab order, at its last node first', () => {
+      nameButton(ctx.root, 'experiences').focus();
+      expect(tabbable()).toEqual(['academic', 'professional']);
+      shiftTab();
+      expect(tabbable()).toEqual(['papers', 'patents', 'presentations', 'academic', 'professional']);
+      // The browser then moves focus to the last of those, the stop before
+      // the name; keyboard focus there keeps its category in the tab order.
+      nodeButton(ctx.root, 'presentations').focus();
+      expect(tabbable()).toEqual(['papers', 'patents', 'presentations']);
+      expect(hovered(ctx.root)).toEqual(['publications']);
+
+      // From the first category's name, Shift+Tab leaves the panel.
+      nameButton(ctx.root, 'publications').focus();
+      shiftTab();
+      expect(tabbable()).toEqual(['papers', 'patents', 'presentations']);
+    });
+
+    it('Shift+Tab with nothing focused enters the last category at its last node', () => {
+      shiftTab();
+      expect(document.activeElement).toBe(document.body);
+      expect(tabbable()).toEqual(['engagements', 'code']);
     });
 
     it('focus on a node hovers its scene node until the node loses focus', () => {

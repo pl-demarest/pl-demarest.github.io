@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { SECTIONS } from '../../src/content/site';
 import { expect, openScene, test } from './support/fixtures';
+import { SceneModel, type ScreenPoint } from './support/geometry';
 
 // Keyboard and screen-reader access to the panel in a real browser: Tab
 // focus expands a category the way hover does, Enter and Space select,
@@ -69,6 +70,37 @@ async function focusRing(page: Page, target: Locator): Promise<{ sides: Record<S
   return { sides, crop };
 }
 
+/** The focused element, named for a tab walk: a node id, `name:<section>`, or tag and label; null for none. */
+function focusedStop(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    const el = document.activeElement;
+    if (!(el instanceof HTMLElement) || el === document.body) return null;
+    if (el.dataset['nodeId']) return el.dataset['nodeId'];
+    const ringId = el.closest<HTMLElement>('.ip-category')?.dataset['ringId'];
+    if (ringId) return `name:${ringId}`;
+    return `${el.tagName.toLowerCase()}:${el.getAttribute('aria-label') ?? el.textContent?.trim()}`;
+  });
+}
+
+/**
+ * Press `key` `presses` times, or, with no count, until focus leaves the
+ * page or comes back to the walk's first stop; return the stops. Before
+ * every press the mouse moves a pixel at `rest`, as a hand resting on it
+ * does, so the panel sees the pointer there throughout.
+ */
+async function tabWalk(page: Page, key: 'Tab' | 'Shift+Tab', rest: ScreenPoint, presses?: number): Promise<string[]> {
+  const stops: string[] = [];
+  for (let i = 0; i < (presses ?? 40); i++) {
+    await page.mouse.move(rest.x + (i % 2), rest.y);
+    await page.keyboard.press(key);
+    const stop = await focusedStop(page);
+    if (presses === undefined && (stop === null || stop === stops[0])) return stops;
+    stops.push(stop ?? 'none');
+  }
+  if (presses === undefined) throw new Error(`${key} did not leave the page in 40 presses: ${stops.join(' > ')}`);
+  return stops;
+}
+
 test.beforeEach(async ({ page }) => {
   await openScene(page, 160);
 });
@@ -92,6 +124,54 @@ test('Tab walks the categories and the nodes of the expanded one', async ({ page
   await expect(category(page, 'experiences')).toHaveClass(/\bhovered\b/);
   await expect(name(page, 'publications')).toHaveAttribute('aria-expanded', 'false');
 });
+
+for (const viewport of [
+  { width: 1280, height: 800 },
+  { width: 375, height: 812 },
+]) {
+  test.describe(`at ${viewport.width} px`, () => {
+    test.use({ viewport });
+
+    test('the tab order is the same wherever the mouse rests, and Shift+Tab walks it backward', async ({ page }) => {
+      // Away from the panel, over empty canvas; over each category's name;
+      // and over a ring in the scene, which hovers its category from there.
+      const model = new SceneModel(viewport, 160);
+      const away = { x: 60, y: viewport.height / 3 };
+      expect(model.isEmpty(away)).toBe(true);
+      const rests: Array<[string, ScreenPoint]> = [['away', away]];
+      for (const { id } of SECTIONS) {
+        const box = (await name(page, id).boundingBox())!;
+        rests.push([`on ${id}`, { x: box.x + box.width / 2, y: box.y + box.height / 2 }]);
+      }
+      const outer = SECTIONS[SECTIONS.length - 1]!.id;
+      rests.push([`on the ${outer} ring`, model.ringPoint(outer, { margin: 90, maxX: viewport.width - 200 })]);
+
+      const walks: Record<string, { forward: string[]; backward: string[] }> = {};
+      // A click on the header's name, which takes no focus, starts the next
+      // Tab at the top of the page.
+      const fromTop = () => page.locator('.header-name').click();
+      for (const [where, rest] of rests) {
+        // From the top of the page to its last stop...
+        await fromTop();
+        const forward = await tabWalk(page, 'Tab', rest);
+        // ...and back from that last stop, reached again with Tab, not by
+        // going past the end of the page.
+        await fromTop();
+        await tabWalk(page, 'Tab', rest, forward.length);
+        const backward = [(await focusedStop(page)) ?? 'none', ...(await tabWalk(page, 'Shift+Tab', rest, forward.length - 1))];
+        walks[where] = { forward, backward };
+      }
+      const expected = walks['away']!.forward;
+      // After the header: every category's name, each followed by its nodes.
+      const panelStops = SECTIONS.flatMap(section => [`name:${section.id}`, ...section.nodes.map(n => n.id)]);
+      expect(expected.slice(-panelStops.length)).toEqual(panelStops);
+      for (const [where, walk] of Object.entries(walks)) {
+        expect(walk.forward, `Tab with the mouse ${where}`).toEqual(expected);
+        expect(walk.backward, `Shift+Tab with the mouse ${where}`).toEqual([...expected].reverse());
+      }
+    });
+  });
+}
 
 test('Enter and Space select, Escape clears and leaves the focused category open', async ({ page }) => {
   await name(page, 'experiences').focus();

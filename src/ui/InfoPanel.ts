@@ -42,6 +42,11 @@ interface Layout {
  * hover a category, a click or Enter or Space selects it, and Escape or a
  * click outside clears the selection. All of it goes through the store, and
  * the panel renders its classes and ARIA state from the store.
+ *
+ * Tab walks each category's name and then its nodes, and Shift+Tab walks
+ * the same stops backward. A category's node buttons are in the tab order
+ * while it is selected or holds keyboard focus, never because the pointer
+ * is over it, so where the mouse rests does not change the tab order.
  */
 export class InfoPanel {
   private readonly root: HTMLElement;
@@ -198,18 +203,21 @@ export class InfoPanel {
     let collapsedAroundFocus: Category | null = null;
     for (const category of this.categories) {
       const selected = category.id === state.selectedRingId;
+      const focused = category.id === this.keyboardFocusId;
       // The selected category is never hovered (see Store.hoverRing).
-      const hovered = !selected && (category.id === hoveredId || category.id === this.keyboardFocusId);
+      const hovered = !selected && (category.id === hoveredId || focused);
       category.root.classList.toggle('hovered', hovered);
       category.root.classList.toggle('selected', selected);
       const expanded = hovered || selected;
       const wasExpanded = category.name.getAttribute('aria-expanded') === 'true';
       category.name.setAttribute('aria-expanded', String(expanded));
       // A collapsed list is only squeezed to zero height by CSS: its node
-      // buttons leave the tab order and the accessibility tree here.
+      // buttons leave the accessibility tree here.
       if (expanded) category.list.removeAttribute('aria-hidden');
       else category.list.setAttribute('aria-hidden', 'true');
-      for (const button of category.nodeButtons) button.tabIndex = expanded ? 0 : -1;
+      // Selection and keyboard focus put them in the tab order; a pointer
+      // hover expands the list and leaves the tab order alone.
+      for (const button of category.nodeButtons) button.tabIndex = selected || focused ? 0 : -1;
       if (wasExpanded && !expanded && category.list.contains(document.activeElement)) collapsedAroundFocus = category;
     }
     // A row hovered from the panel shows its own :hover style.
@@ -293,6 +301,10 @@ export class InfoPanel {
   };
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key === 'Tab' && e.shiftKey) {
+      this.openTabStopsBehind(document.activeElement);
+      return;
+    }
     if (e.key !== 'Escape') return;
     this.store.clearSelection();
     // A category with keyboard focus in it stays expanded as a hover, with
@@ -303,6 +315,20 @@ export class InfoPanel {
     if (active !== focused.name) focused.name.focus();
     this.store.hoverRing(focused.id, 'panel');
   };
+
+  /**
+   * Shift+Tab from a category's name, or from nowhere (past the end of the
+   * page), goes to the category before it. Tab reached that category's
+   * nodes after its name, so going back reaches its last node first: its
+   * node buttons join the tab order now, before the browser moves focus.
+   * The keyboard focus they then get keeps them there (see render).
+   */
+  private openTabStopsBehind(active: Element | null): void {
+    const atEnd = active === null || active === document.body;
+    const index = atEnd ? this.categories.length : this.categories.findIndex(c => c.name === active);
+    const previous = index > 0 ? this.categories[index - 1] : undefined;
+    for (const button of previous?.nodeButtons ?? []) button.tabIndex = 0;
+  }
 }
 
 function isKeyboardFocus(target: EventTarget | null): boolean {
