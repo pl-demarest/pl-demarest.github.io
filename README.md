@@ -40,6 +40,8 @@ src/
     header.ts              Top bar with name and nav links
     breakpoints.ts         MOBILE_MAX_WIDTH (767 px), the value style.css uses
 style.css                  Header, panel, mobile layout, reduced motion
+docs/
+  CONTENT.md               Content guide: sections, nodes, links, actions, layout, tests, cloud GLB
 tests/
   unit/                    Vitest (Node and happy-dom)
   e2e/                     Playwright: desktop, mobile, keyboard, resilience; darwin screenshot baselines
@@ -57,6 +59,8 @@ tests/
 ## Content
 
 Sections, nodes, actions and links are in `src/content/site.ts`; orbit placement is in `src/content/layout.ts`. Every node's action is `{ kind: 'none' }` today; `external`, `route` and `suborbital` are reserved for the targets Phase 2 adds. `tests/unit/content.test.ts` runs `validateContent()` on the content.
+
+[docs/CONTENT.md](docs/CONTENT.md) is the guide for changing content: how to add a section, a node, a link or a node action, what the layout values mean, what the checks catch, how to run the tests and update screenshot baselines on purpose, and how to load a cloud-designer GLB.
 
 ## Visual design
 
