@@ -83,6 +83,8 @@ export class InteractionManager {
   private press: Press | null = null;
   private drag: Drag | null = null;
   private hovered: PickTarget | null = null;
+  /** Where a pointer over the canvas last was, in client px; null once it leaves. */
+  private pointer: { x: number; y: number } | null = null;
 
   constructor(camera: THREE.Camera, canvas: HTMLCanvasElement, handlers: InteractionHandlers = {}) {
     this.camera = camera;
@@ -112,7 +114,20 @@ export class InteractionManager {
     this.nodeMeshes = [];
     this.targets.clear();
     this.hovered = null;
+    this.pointer = null;
     this.canvas.style.cursor = '';
+  }
+
+  /**
+   * Pick again at the pointer's last position: the scene moves under a
+   * pointer that rests, and a node that orbits away from it, or under it,
+   * changes the hover. App calls this once per frame, before the rings
+   * move, so the pick sees the frame on screen. Nothing happens while a
+   * press holds the hover still, or with no pointer over the canvas.
+   */
+  refreshHover(): void {
+    if (this.press || !this.pointer) return;
+    this.setHovered(this.pick(this.pointer.x, this.pointer.y));
   }
 
   /**
@@ -184,6 +199,7 @@ export class InteractionManager {
     // over. Only the mouse is read this way: a touch or pen contact reports
     // buttons 1, and a browser that sent 0 would end such drags at once.
     if (e.pointerType === 'mouse' && this.press?.pointerId === e.pointerId && e.buttons === 0) this.endPress();
+    if (!this.press || this.press.pointerId === e.pointerId) this.pointer = { x: e.clientX, y: e.clientY };
     const press = this.press;
     if (press?.pointerId === e.pointerId && Math.hypot(e.clientX - press.x, e.clientY - press.y) >= CLICK_THRESHOLD) {
       press.moved = true;
@@ -211,7 +227,10 @@ export class InteractionManager {
     // The hover stood still during the press. A mouse or pen is now over
     // whatever lies under the release point (a pointerleave follows if that
     // is not the canvas); a touch that lifts leaves the canvas.
-    if (e.pointerType !== 'touch') this.setHovered(this.pick(e.clientX, e.clientY));
+    if (e.pointerType !== 'touch') {
+      this.pointer = { x: e.clientX, y: e.clientY };
+      this.setHovered(this.pick(e.clientX, e.clientY));
+    }
     if (press.moved || Math.hypot(e.clientX - press.x, e.clientY - press.y) >= CLICK_THRESHOLD) return;
 
     const { target } = press;
@@ -230,6 +249,7 @@ export class InteractionManager {
 
   /** The pointer left the canvas, onto an overlay or out of the window. */
   private readonly onPointerLeave = (): void => {
+    this.pointer = null;
     this.setHovered(null);
   };
 

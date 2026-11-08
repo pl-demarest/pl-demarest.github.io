@@ -104,6 +104,8 @@ export class App {
     );
 
     sm.onTick(dt => {
+      // Before the rings move: the pick sees the frame on screen.
+      interaction.refreshHover();
       for (const ring of rings) ring.update(dt);
       particles.update(dt);
     });

@@ -398,6 +398,42 @@ describe('InteractionManager', () => {
     expect(rig.canvas.style.cursor).toBe('default');
   });
 
+  it('refreshHover() picks again where the pointer rests, as the scene moves under it', () => {
+    const ring = rig.rings[0]!;
+    const node = ring.nodes[0]!;
+    const p = nodePoint(rig, node);
+    fire(rig.canvas, 'pointermove', p);
+    expect(rig.onHover).toHaveBeenLastCalledWith({ ring, node });
+    // The rings turn under the still pointer until the node has left it.
+    let frames = 0;
+    while (pick(rig, p).nodeHit?.object === node.mesh && frames < 3600) {
+      for (const r of rig.rings) {
+        r.update(1 / 60);
+        r.group.updateMatrixWorld(true);
+      }
+      frames++;
+    }
+    expect(frames).toBeLessThan(3600);
+    rig.im.refreshHover();
+    const { ringHit, nodeHit } = pick(rig, p);
+    expect(nodeHit).toBeUndefined();
+    const under = rig.rings.find(r => r.hitMesh === ringHit?.object) ?? null;
+    expect(rig.onHover).toHaveBeenLastCalledWith(under ? { ring: under, node: null } : null);
+    expect(rig.store.getState().hoveredNode).toBeNull();
+    expect(color(node).getHex()).toBe(0x000000);
+
+    // Nothing to pick again once the pointer has left the canvas, or while it presses.
+    rig.onHover.mockClear();
+    fire(rig.canvas, 'pointerleave', p);
+    rig.im.refreshHover();
+    expect(rig.onHover).toHaveBeenCalledTimes(1);
+    fire(rig.canvas, 'pointermove', EMPTY);
+    fire(rig.canvas, 'pointerdown', EMPTY, { buttons: 1 });
+    const pressed = vi.mocked(rig.canvas.getBoundingClientRect).mock.calls.length;
+    rig.im.refreshHover();
+    expect(vi.mocked(rig.canvas.getBoundingClientRect).mock.calls.length).toBe(pressed);
+  });
+
   it('a release without a press on the canvas is not a click', () => {
     const p = ringPoint(rig, rig.rings[1]!);
     fire(rig.canvas, 'pointermove', p);

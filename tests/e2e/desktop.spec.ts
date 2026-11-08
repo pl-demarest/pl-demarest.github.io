@@ -301,6 +301,22 @@ test('hovering a scene node highlights its panel entry', async ({ page }) => {
   await expect(page.locator('.ip-node.scene-hovered')).toHaveCount(0);
 });
 
+test('a node that orbits away from a resting pointer is no longer hovered', async ({ page }) => {
+  const at = model.nodePoint('papers');
+  await page.mouse.move(at.x, at.y);
+  await expect(page.locator('.ip-node[data-node-id="papers"]')).toHaveClass(/\bscene-hovered\b/);
+  await expect(page.locator('#scene')).toHaveCSS('cursor', 'pointer');
+
+  // 5 s later the node is elsewhere; the pointer has not moved.
+  await advance(page, 4992);
+  const later = new SceneModel(VIEWPORT, SETTLE_MS + 4992);
+  const papers = (await readScene(page)).nodes['papers']!;
+  expect(Math.hypot(papers.screen.x - at.x, papers.screen.y - at.y)).toBeGreaterThan(20);
+  expect(later.nodeUnder(at)).toBeNull();
+  await expect(page.locator('.ip-node.scene-hovered')).toHaveCount(0);
+  await expect(page.locator('#scene')).not.toHaveCSS('cursor', 'pointer');
+});
+
 test('picking follows the canvas when it changes size without a window resize', async ({ page }) => {
   // A pick at full size measures the canvas and keeps its rect.
   await page.mouse.move(EMPTY.x, EMPTY.y);

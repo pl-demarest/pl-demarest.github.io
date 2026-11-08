@@ -105,6 +105,12 @@ export class SceneModel {
     return !hit.ring && !hit.node;
   }
 
+  /** The id of the node under the point, or null. */
+  nodeUnder(p: ScreenPoint): string | null {
+    const mesh = this.raycast(p).node?.object;
+    return this.rings.flatMap(r => r.nodes).find(n => n.mesh === mesh)?.config.id ?? null;
+  }
+
   /**
    * A point on the ring's ellipse, at least `margin` px inside the viewport and
    * left of `maxX`, where this ring is the first hit and no node is near.
