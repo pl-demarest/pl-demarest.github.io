@@ -7,6 +7,7 @@ const H_SEGMENTS = 6;
 /** Share of the remaining hover-scale change covered per 60 Hz frame. */
 const SCALE_EASE = 0.12;
 const COLOR_DEFAULT = new THREE.Color(0x000000);
+/** The page's accent colour, --accent in style.css. */
 const COLOR_HIGHLIGHT = new THREE.Color(0xa27fb8);
 
 /** Every node is the same sphere, so all nodes share one geometry. */
