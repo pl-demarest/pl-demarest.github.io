@@ -189,6 +189,24 @@ test('Enter and Space select, Escape clears and leaves the focused category open
   await expect(page.locator('.ip-category.selected')).toHaveCount(0);
 });
 
+test('Enter and Space on a name tell assistive technology that its section is selected', async ({ page }) => {
+  // aria-expanded is already true while the name has keyboard focus, so the
+  // selection needs a state of its own.
+  await name(page, 'experiences').focus();
+  await expect(page.locator('#info-panel')).toMatchAriaSnapshot(`
+    - button "Experiences" [expanded] [pressed=false]
+  `);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#info-panel')).toMatchAriaSnapshot(`
+    - button "Experiences" [expanded] [pressed]
+  `);
+  await page.keyboard.press('Space');
+  await expect(name(page, 'experiences')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#info-panel')).toMatchAriaSnapshot(`
+    - button "Experiences" [expanded] [pressed=false]
+  `);
+});
+
 test('a pointer move does not collapse the category that holds keyboard focus', async ({ page }) => {
   await page.locator('.header-link').last().focus();
   await page.keyboard.press('Tab'); // Publications

@@ -211,6 +211,9 @@ export class InfoPanel {
       const expanded = hovered || selected;
       const wasExpanded = category.name.getAttribute('aria-expanded') === 'true';
       category.name.setAttribute('aria-expanded', String(expanded));
+      // The name toggles its section's selection; focus and hover expand it
+      // too, so the selection has a state of its own.
+      category.name.setAttribute('aria-pressed', String(selected));
       // CSS only shrinks a collapsed list to its padding (on mobile a 19 px
       // box above the bar) and lets the pointer through it; its node
       // buttons leave the accessibility tree here.

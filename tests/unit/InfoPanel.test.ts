@@ -131,6 +131,21 @@ describe('InfoPanel', () => {
     expect(tabbable()).toEqual(['papers', 'patents', 'presentations', 'academic', 'professional']);
   });
 
+  it('tells assistive technology which section is selected: aria-pressed on its name', () => {
+    const pressed = () => SECTIONS.map(s => nameButton(ctx.root, s.id).getAttribute('aria-pressed'));
+    expect(pressed()).toEqual(['false', 'false', 'false']);
+    // Focus and hover expand a category; only the selection presses its name.
+    nameButton(ctx.root, 'experiences').focus();
+    ctx.store.hoverRing('projects', 'scene');
+    expect(pressed()).toEqual(['false', 'false', 'false']);
+    nameButton(ctx.root, 'experiences').click();
+    expect(pressed()).toEqual(['false', 'true', 'false']);
+    ctx.store.toggleSelection('publications');
+    expect(pressed()).toEqual(['true', 'false', 'false']);
+    ctx.store.clearSelection();
+    expect(pressed()).toEqual(['false', 'false', 'false']);
+  });
+
   it('hides the node lists of collapsed categories from assistive technology', () => {
     const hidden = () =>
       SECTIONS.filter(s => document.getElementById(`ip-nodes-${s.id}`)!.getAttribute('aria-hidden') === 'true').map(s => s.id);

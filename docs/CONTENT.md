@@ -62,7 +62,7 @@ Each section is a category in the panel: a button with the section's label, then
 - Tab walks the header, then each category's name followed by its nodes; Shift+Tab walks the same stops backward.
 - Focus on a name or a node expands its category, as the pointer does. Enter or Space on a name selects its section and lays its ring flat, or deselects it; on a node it activates the node (see [Node actions](#node-actions)). Escape clears the selection; with focus in a category, focus moves to its name and the category stays open.
 - A category's node buttons are in the tab order while the category holds keyboard focus or is selected. A pointer over the panel or over a ring expands a category without adding its nodes to the tab order, so where the mouse rests never changes the tab order. Shift+Tab from a category's name first adds the category before it, so focus lands on that category's last node, as Tab left it.
-- A collapsed category's node list is hidden from assistive technology, and its name reports `aria-expanded`.
+- A collapsed category's node list is hidden from assistive technology. A name reports `aria-expanded` (its list is open) and `aria-pressed` (its section is selected).
 
 Every node is a stop on a full walk, so long node lists make the walk long.
 
