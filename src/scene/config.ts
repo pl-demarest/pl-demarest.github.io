@@ -1,4 +1,5 @@
 import { LAYOUT } from '../content/layout';
+import { own } from '../content/own';
 import { SECTIONS } from '../content/site';
 import type { OrbitLayout, Section, SiteNode } from '../content/types';
 
@@ -20,7 +21,7 @@ export function buildOrbitals(
   layout: Readonly<Record<string, OrbitLayout>>,
 ): OrbitalConfig[] {
   return sections.map(section => {
-    const orbit = layout[section.id];
+    const orbit = own(layout, section.id);
     if (!orbit) throw new Error(`section "${section.id}" has no layout`);
     const { nodeAngles, ...placement } = orbit;
     return {
@@ -28,7 +29,7 @@ export function buildOrbitals(
       label: section.label,
       ...placement,
       nodes: section.nodes.map(node => {
-        const angleOffset = nodeAngles[node.id];
+        const angleOffset = own(nodeAngles, node.id);
         if (angleOffset === undefined) throw new Error(`node "${node.id}" has no angle in the layout`);
         return { ...node, angleOffset };
       }),

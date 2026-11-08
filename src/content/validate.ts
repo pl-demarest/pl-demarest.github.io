@@ -1,3 +1,4 @@
+import { own } from './own';
 import type { Link, NodeAction, OrbitLayout, Section } from './types';
 
 /**
@@ -37,7 +38,7 @@ export function validateContent(
     claimId(section.id, 'section');
     if (section.label.trim() === '') problems.push(`${where} has an empty label`);
 
-    const orbit = layout[section.id];
+    const orbit = own(layout, section.id);
     if (orbit) problems.push(...checkOrbit(orbit, section, where));
     else problems.push(`${where} has no layout`);
 
@@ -72,7 +73,7 @@ function checkOrbit(orbit: OrbitLayout, section: Section, where: string): string
 
   const nodeIds = new Set(section.nodes.map(n => n.id));
   for (const id of nodeIds) {
-    const angle = orbit.nodeAngles[id];
+    const angle = own(orbit.nodeAngles, id);
     if (angle === undefined || !Number.isFinite(angle)) {
       problems.push(`node "${id}" has no finite angle in the layout of ${where}`);
     }

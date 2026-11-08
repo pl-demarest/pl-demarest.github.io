@@ -27,6 +27,7 @@ src/
     site.ts                The sections and their nodes: labels, descriptions, actions, links; CLOUDS
     layout.ts              Orbit placement per section: radii, tilt, cruise speed (rad/s), coupling, node angles
     validate.ts            validateContent(): unique ids, finite numbers, well-formed actions and links
+    own.ts                 own(): a record's own entry by id, never one every object inherits
   scene/
     SceneManager.ts        Renderer, camera presets, resize, animation loop
     OrbitalRing.ts         One ring: ellipse line, hit tube, nodes; spin, tilt and flat-view motion

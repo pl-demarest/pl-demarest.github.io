@@ -147,6 +147,14 @@ describe('validateContent', () => {
     ]);
   });
 
+  it('reads only the layout\'s own entries, not those every object inherits', () => {
+    // A section or node named like an Object.prototype member.
+    const { sections, layout } = copy();
+    sections[2]!.id = 'constructor';
+    delete layout['projects'];
+    expect(validateContent(sections, layout)).toEqual(['section "constructor" has no layout']);
+  });
+
   it('reports a section without a layout and a layout without a section', () => {
     const { sections, layout } = copy();
     layout['elsewhere'] = layout['projects']!;
@@ -167,6 +175,17 @@ describe('buildOrbitals', () => {
       expect(orbital).toMatchObject({ label: section.label, ...placement });
       expect(orbital.nodes).toEqual(section.nodes.map(n => ({ ...n, angleOffset: nodeAngles[n.id] })));
     }
+  });
+
+  it('throws for a section or node named like an inherited member, with no placement of its own', () => {
+    const section = copy();
+    section.sections[2]!.id = 'toString';
+    delete section.layout['projects'];
+    expect(() => buildOrbitals(section.sections, section.layout)).toThrow('section "toString" has no layout');
+    const node = copy();
+    node.sections[2]!.nodes[1]!.id = 'constructor';
+    delete node.layout['projects']!.nodeAngles['code'];
+    expect(() => buildOrbitals(node.sections, node.layout)).toThrow('node "constructor" has no angle in the layout');
   });
 
   it('throws when a section or a node has no placement', () => {
