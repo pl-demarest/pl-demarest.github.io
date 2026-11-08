@@ -1,5 +1,5 @@
 import { ORBITALS } from '../../src/scene/config';
-import { advance, expect, openScene, test } from './support/fixtures';
+import { FRAME_MS, advance, expect, openScene, test } from './support/fixtures';
 import { SceneModel } from './support/geometry';
 
 const VIEWPORT = { width: 375, height: 812 };
@@ -58,4 +58,61 @@ test('tapping a ring in the scene selects it', async ({ page }) => {
   await page.touchscreen.tap(point.x, point.y);
   await expect(page.locator('.ip-category[data-ring-id="projects"]')).toHaveClass(/\bselected\b/);
   await expect(page.locator('.ip-category.selected')).toHaveCount(1);
+});
+
+test('a pinch that starts on the scene zooms the page', async ({ page }) => {
+  // The canvas covers the window. With touch-action: none on it, no pinch
+  // could zoom the page (the scale stayed 1); pinch-zoom leaves two-finger
+  // gestures to the browser.
+  const fingers = (gap: number) => [
+    { id: 1, x: 187 - gap, y: 350 },
+    { id: 2, x: 187 + gap, y: 350 },
+  ];
+  const onScene = await page.evaluate(
+    points => points.map(p => document.elementFromPoint(p.x, p.y)?.id),
+    fingers(20),
+  );
+  expect(onScene).toEqual(['scene', 'scene']);
+
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: fingers(20) });
+  for (let i = 1; i <= 10; i++) {
+    await page.waitForTimeout(20); // the browser's gesture detector runs in real time
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: fingers(20 + i * 8) });
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect.poll(() => page.evaluate(() => window.visualViewport!.scale)).toBeGreaterThan(1.5);
+});
+
+test('a one-finger drag on the scene still reaches the pointer layer', async ({ page }) => {
+  // pinch-zoom allows no one-finger panning, so the browser does not take
+  // the drag (touch-action: auto would cancel the pointer after two moves).
+  const canvas = page.locator('#scene');
+  await expect(canvas).toHaveCSS('touch-action', 'pinch-zoom');
+
+  await page.evaluate(() => {
+    const events: string[] = [];
+    (window as unknown as { events: string[] }).events = events;
+    const scene = document.getElementById('scene')!;
+    for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
+      scene.addEventListener(type, e => events.push(`${e.type} ${(e as PointerEvent).pointerType}`));
+    }
+  });
+  // Clear of the header and the bottom bar, with room for the 90 px drag.
+  const start = new SceneModel(VIEWPORT, 2000).ringPoint('projects', { margin: 90, maxX: VIEWPORT.width - 130 });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: start.x, y: start.y }] });
+  for (let i = 1; i <= 6; i++) {
+    await advance(page, FRAME_MS);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: start.x + i * 15, y: start.y }] });
+  }
+  // The pointer layer holds the drag (InteractionManager shows 'grabbing' only then).
+  await expect(canvas).toHaveCSS('cursor', 'grabbing');
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect(canvas).not.toHaveCSS('cursor', 'grabbing');
+
+  const events = await page.evaluate(() => (window as unknown as { events: string[] }).events);
+  expect(events).toEqual(['pointerdown touch', ...Array<string>(6).fill('pointermove touch'), 'pointerup touch']);
+  // A drag is not a tap: nothing is selected.
+  await expect(page.locator('.ip-category.selected')).toHaveCount(0);
 });
