@@ -20,7 +20,7 @@ Each section is one ring in the scene and one category in the panel. Each node i
 2. Add an `OrbitLayout` under the same id to `LAYOUT` in `layout.ts`, with an angle in `nodeAngles` for every node (see [Layout values](#layout-values)). Keep the rings ordered inside out: each `radiusX` larger than the one before (`tests/unit/config.test.ts` checks this).
 3. Run the tests and update the ones that pin today's three sections (see [Tests that pin today's content](#tests-that-pin-todays-content)).
 
-Ids must be unique across sections and nodes together: a section id becomes the panel's `data-ring-id` and the node list's DOM id `ip-nodes-<id>`, a node id becomes `data-node-id`, and both key the scene's lookups.
+Ids are single tokens of letters, digits, `-` and `_`, unique across sections and nodes together: a section id becomes the panel's `data-ring-id`, the node list's DOM id `ip-nodes-<id>` and its name's `aria-controls`, a node id becomes `data-node-id`, and both key the scene's lookups.
 
 `buildOrbitals` runs when the page loads. A section without a layout, or a node without an angle, throws there, and the page then shows nothing, not even the panel. `validateContent` reports these and more, but it runs in the unit tests, not in the page, so run them.
 
@@ -86,7 +86,7 @@ With `prefers-reduced-motion`, rings do not turn on their own and the flat view 
 
 `validateContent(SECTIONS, LAYOUT)` returns one message per problem; `content.test.ts` expects none.
 
-- Every section and node id is non-empty and unique across sections and nodes together.
+- Every section and node id is one token of letters, digits, `-` and `_` that starts with a letter or digit, and is unique across sections and nodes together.
 - Every section and node label is non-empty.
 - Every section has a layout, and every layout belongs to a section.
 - `radiusX`, `radiusY`, `tilt.x`, `tilt.z`, `speed` and `couplingFactor` are finite numbers.

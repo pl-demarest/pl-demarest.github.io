@@ -44,6 +44,29 @@ describe('validateContent', () => {
     expect(problems).toContain('node " " has an empty id');
   });
 
+  it('reports ids that are not single DOM tokens', () => {
+    // An id becomes a DOM id and an aria-controls value, where a space
+    // splits it in two, and a key in CSS selectors.
+    const { sections, layout } = copy();
+    sections[2]!.id = 'my projects';
+    layout['my projects'] = layout['projects']!;
+    delete layout['projects'];
+    const rename = (section: number, node: number, id: string) => {
+      const angles = layout[sections[section]!.id]!.nodeAngles;
+      const n = sections[section]!.nodes[node]!;
+      angles[id] = angles[n.id]!;
+      delete angles[n.id];
+      n.id = id;
+    };
+    rename(0, 0, 'papers"]');
+    rename(1, 0, '-academic');
+    expect(validateContent(sections, layout)).toEqual([
+      'node "papers"]" id may hold only letters, digits, "-" and "_", and must start with a letter or digit',
+      'node "-academic" id may hold only letters, digits, "-" and "_", and must start with a letter or digit',
+      'section "my projects" id may hold only letters, digits, "-" and "_", and must start with a letter or digit',
+    ]);
+  });
+
   it('reports missing, non-finite and stray node angles', () => {
     const { sections, layout } = copy();
     const pub = layout['publications']!;

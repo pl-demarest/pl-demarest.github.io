@@ -1,6 +1,12 @@
 import type { Link, NodeAction, OrbitLayout, Section } from './types';
 
 /**
+ * An id becomes a DOM id, an aria-controls value and a key in CSS
+ * selectors: one token of letters, digits, '-' and '_'.
+ */
+const ID = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
+/**
  * Check sections against their layout. Returns one message per problem; an
  * empty array means the content is valid. Ids must be unique across sections
  * and nodes together, because both become DOM ids and scene lookup keys.
@@ -17,6 +23,9 @@ export function validateContent(
     if (id.trim() === '') {
       problems.push(`${kind} "${id}" has an empty id`);
       return;
+    }
+    if (!ID.test(id)) {
+      problems.push(`${kind} "${id}" id may hold only letters, digits, "-" and "_", and must start with a letter or digit`);
     }
     const first = owners.get(id);
     if (first === undefined) owners.set(id, kind);
