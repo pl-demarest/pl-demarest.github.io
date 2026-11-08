@@ -19,7 +19,7 @@ export interface InteractionHandlers {
   onBackgroundClick?: () => void;
 }
 
-/** A release closer than this to its press, in CSS px, is a click. */
+/** A press whose pointer never moves this far from it, in CSS px, is a click. */
 const CLICK_THRESHOLD = 5;
 /** Orbit angle per px of horizontal drag: the dragged ring spins at this times the pointer speed. */
 const ORBIT_FORCE = 0.008;
@@ -42,6 +42,8 @@ interface Press {
   readonly y: number;
   /** What was under the pointer at the press; a click resolves to it. */
   readonly target: PickTarget | null;
+  /** The pointer has been CLICK_THRESHOLD or more from the press: not a click, wherever it is released. */
+  moved: boolean;
 }
 
 interface Drag {
@@ -55,8 +57,9 @@ interface Drag {
 /**
  * Pointer input on the scene canvas: hover picking, drag-to-spin with
  * coupled rings, and clicks. A press captures the pointer, so a drag keeps
- * going over the header and the panel; a release under CLICK_THRESHOLD from
- * the press is a click on whatever was under the press.
+ * going over the header and the panel; a press whose pointer stays under
+ * CLICK_THRESHOLD from it until the release is a click on whatever was
+ * under the press.
  */
 export class InteractionManager {
   private readonly camera: THREE.Camera;
@@ -163,7 +166,7 @@ export class InteractionManager {
     if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
     if (this.press) this.endPress();
     const target = this.pick(e.clientX, e.clientY);
-    this.press = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, target };
+    this.press = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, target, moved: false };
     if (target) this.drag = { ring: target.ring, lastX: e.clientX, lastY: e.clientY, lastTime: e.timeStamp };
     this.updateCursor();
     try {
@@ -181,6 +184,10 @@ export class InteractionManager {
     // over. Only the mouse is read this way: a touch or pen contact reports
     // buttons 1, and a browser that sent 0 would end such drags at once.
     if (e.pointerType === 'mouse' && this.press?.pointerId === e.pointerId && e.buttons === 0) this.endPress();
+    const press = this.press;
+    if (press?.pointerId === e.pointerId && Math.hypot(e.clientX - press.x, e.clientY - press.y) >= CLICK_THRESHOLD) {
+      press.moved = true;
+    }
     if (this.drag) {
       // Only the pressing pointer counts during a drag: a second finger, or a
       // mouse beside a touch, does not change the hover.
@@ -201,7 +208,7 @@ export class InteractionManager {
     const press = this.press;
     if (!press || press.pointerId !== e.pointerId) return;
     this.endPress();
-    if (Math.hypot(e.clientX - press.x, e.clientY - press.y) >= CLICK_THRESHOLD) return;
+    if (press.moved || Math.hypot(e.clientX - press.x, e.clientY - press.y) >= CLICK_THRESHOLD) return;
 
     const { target } = press;
     if (!target) {

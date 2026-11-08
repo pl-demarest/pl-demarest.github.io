@@ -362,6 +362,26 @@ describe('InteractionManager', () => {
     expect(rig.onBackgroundClick).not.toHaveBeenCalled();
   });
 
+  it('a drag that comes back to its press point is not a click', () => {
+    // Out and back: the release lands 2 px from the press.
+    const ring = rig.rings[2]!;
+    const p = ringPoint(rig, ring);
+    fire(rig.canvas, 'pointerdown', p, { buttons: 1 }, 1000);
+    [20, 40, 60, 30, 2].forEach((dx, i) => fire(rig.canvas, 'pointermove', { x: p.x + dx, y: p.y }, HELD, 1016 + i * 16));
+    const spin = ring.angularVelocity;
+    expect(spin).toBeCloseTo((-28 * 0.008) / 0.016, 9);
+    fire(rig.canvas, 'pointerup', { x: p.x + 2, y: p.y });
+    expect(rig.onRingClick).not.toHaveBeenCalled();
+    expect(ring.angularVelocity).toBe(spin);
+
+    // The same on empty space: no background click.
+    fire(rig.canvas, 'pointerdown', EMPTY, { buttons: 1 });
+    fire(rig.canvas, 'pointermove', { x: EMPTY.x + 30, y: EMPTY.y }, HELD);
+    fire(rig.canvas, 'pointermove', EMPTY, HELD);
+    fire(rig.canvas, 'pointerup', EMPTY);
+    expect(rig.onBackgroundClick).not.toHaveBeenCalled();
+  });
+
   it('a release without a press on the canvas is not a click', () => {
     const p = ringPoint(rig, rig.rings[1]!);
     fire(rig.canvas, 'pointermove', p);
