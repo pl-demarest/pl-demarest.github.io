@@ -50,8 +50,9 @@ interface Layout {
  *
  * Tab walks each category's name and then its nodes, and Shift+Tab walks
  * the same stops backward. A category's node buttons are in the tab order
- * while it is selected or holds keyboard focus, never because the pointer
- * is over it, so where the mouse rests does not change the tab order.
+ * while it is selected or holds keyboard focus, and from a Tab press with
+ * focus in it, never because the pointer is over it, so where the mouse
+ * rests does not change the tab order.
  */
 export class InfoPanel {
   private readonly root: HTMLElement;
@@ -326,8 +327,8 @@ export class InfoPanel {
   };
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
-    if (e.key === 'Tab' && e.shiftKey) {
-      this.openTabStopsBehind(document.activeElement);
+    if (e.key === 'Tab') {
+      this.openTabStops(document.activeElement, e.shiftKey);
       return;
     }
     if (e.key !== 'Escape') return;
@@ -342,13 +343,19 @@ export class InfoPanel {
   };
 
   /**
-   * Shift+Tab from a category's name, or from nowhere (past the end of the
-   * page), goes to the category before it. Tab reached that category's
-   * nodes after its name, so going back reaches its last node first: its
-   * node buttons join the tab order now, before the browser moves focus.
-   * The keyboard focus they then get keeps them there (see render).
+   * Put the node buttons that Tab or Shift+Tab is about to reach in the tab
+   * order, before the browser moves focus. The category that holds focus
+   * opens its own: a click focuses a name or a node without keyboard focus,
+   * and Tab goes on from there to the next node all the same. Shift+Tab
+   * from a category's name, or from nowhere (past the end of the page),
+   * goes to the category before it; Tab reached that category's nodes after
+   * its name, so going back reaches its last node first. The keyboard focus
+   * they then get keeps them in the tab order (see render).
    */
-  private openTabStopsBehind(active: Element | null): void {
+  private openTabStops(active: Element | null, backward: boolean): void {
+    const holding = this.categories.find(c => c.root.contains(active));
+    for (const button of holding?.nodeButtons ?? []) button.tabIndex = 0;
+    if (!backward) return;
     const atEnd = active === null || active === document.body;
     const index = atEnd ? this.categories.length : this.categories.findIndex(c => c.name === active);
     const previous = index > 0 ? this.categories[index - 1] : undefined;

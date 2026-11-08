@@ -287,6 +287,27 @@ test('a node focused by a click hands focus to its category name when the catego
   await expect(name(page, 'experiences')).toBeFocused();
 });
 
+test('Tab and Shift+Tab from a node focused by a click go on to its neighbours', async ({ page }) => {
+  for (const [key, next] of [
+    ['Tab', 'presentations'],
+    ['Shift+Tab', 'papers'],
+  ] as const) {
+    // A click on the header's name, which takes no focus, leaves the panel
+    // without keyboard focus. The pointer hovers Publications from beside
+    // its name, and a click focuses its middle node.
+    await page.locator('.header-name').click();
+    const box = (await name(page, 'publications').boundingBox())!;
+    await page.mouse.move(box.x - 25, box.y + box.height / 2);
+    await expect(category(page, 'publications')).toHaveClass(/\bhovered\b/);
+    await page.waitForFunction(() => document.getAnimations().length === 0);
+    await node(page, 'patents').click();
+    await expect(node(page, 'patents')).toBeFocused();
+
+    await page.keyboard.press(key);
+    await expect(node(page, next), key).toBeFocused();
+  }
+});
+
 test('focus that follows a mouse click does not act as a hover', async ({ page }) => {
   await name(page, 'publications').click();
   // The pointer hovers Experiences from beside its name, then moves onto

@@ -71,7 +71,8 @@ const move = (x: number, y: number) =>
 const tabbable = () =>
   [...document.querySelectorAll<HTMLButtonElement>('#info-panel .ip-node')].filter(b => b.tabIndex >= 0).map(b => b.dataset['nodeId']);
 
-/** Shift+Tab's keydown; happy-dom does not move focus for it, as a browser then does. */
+/** Tab's and Shift+Tab's keydowns; happy-dom does not move focus for them, as a browser then does. */
+const tab = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
 const shiftTab = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
 
 describe('InfoPanel', () => {
@@ -437,6 +438,25 @@ describe('InfoPanel', () => {
       shiftTab();
       expect(document.activeElement).toBe(document.body);
       expect(tabbable()).toEqual(['engagements', 'code']);
+    });
+
+    it('Tab and Shift+Tab from a node focused by a click put its category in the tab order first', () => {
+      // A click focuses a button without :focus-visible: the category holds
+      // focus but not keyboard focus, and Tab goes on to the next node.
+      const matches = Element.prototype.matches;
+      vi.spyOn(Element.prototype, 'matches').mockImplementation(function (this: Element, selector: string) {
+        return selector === ':focus-visible' ? false : matches.call(this, selector);
+      });
+      ctx.store.hoverRing('publications', 'panel');
+      nodeButton(ctx.root, 'patents').focus();
+      expect(tabbable()).toEqual([]);
+      tab();
+      expect(tabbable()).toEqual(['papers', 'patents', 'presentations']);
+
+      ctx.store.hoverNode('papers', 'panel'); // a render takes them out again
+      expect(tabbable()).toEqual([]);
+      shiftTab();
+      expect(tabbable()).toEqual(['papers', 'patents', 'presentations']);
     });
 
     it('focus on a node hovers its scene node until the node loses focus', () => {
