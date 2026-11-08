@@ -54,6 +54,11 @@ for (const orbital of ORBITALS) {
     await category(page, orbital.id).locator('.ip-category-name').click();
     await expect(category(page, orbital.id)).toHaveClass(/\bselected\b/);
     await expect(page.locator('.ip-category.selected')).toHaveCount(1);
+    // Off the panel before the frames run. The selected list expands in real
+    // time and moves the centred panel under a pointer resting on the name,
+    // and a node row hovered that way lights its scene node at a moment the
+    // fake clock does not control.
+    await page.mouse.move(EMPTY.x, EMPTY.y);
     // The flat-view ease settles in under 40 frames (0.67 s at 60 Hz); run 94 frames.
     await advance(page, 1504);
     await expect(page).toHaveScreenshot(`desktop-selected-${orbital.id}.png`);
