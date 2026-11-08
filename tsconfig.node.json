@@ -3,8 +3,7 @@
   "compilerOptions": {
     "types": ["node"],
     "allowJs": true,
-    "checkJs": true,
-    "resolveJsonModule": true
+    "checkJs": true
   },
   "include": ["src", "tests", "*.config.ts", "*.config.js"]
 }
